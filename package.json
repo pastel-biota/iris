@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {},
+  "devDependencies": {
+    "openapi-to-postmanv2": "^6.0.0",
+    "scaffdog": "^4.1.0"
+  }
+}

@@ -1,7 +1,7 @@
-use std::{io::Read, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 
-use anyhow::{Context, bail};
-use tokio::{fs::File, io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt, BufReader, BufWriter}, pin};
+use anyhow::Context;
+use tokio::{fs::File, io::{AsyncRead, AsyncReadExt as _}, pin};
 
 use crate::{infra::meta::{ImageMeta, PhotoMeta}, model::Identifier};
 
@@ -16,8 +16,12 @@ impl PhotoStorageDirectory {
         }
     }
 
-    pub fn load_image_meta(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
+    pub fn load_photo_meta(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, &id);
+
+        if !self.photo_exists(id) {
+            return Ok(None);
+        }
 
         let file_content = std::fs::read(paths.meta())
             .with_context(|| format!("Could not read the metafile for {}", id.to_string()))?;
@@ -25,6 +29,22 @@ impl PhotoStorageDirectory {
             .with_context(|| format!("The metafile for {} exists, but is malformed", id.to_string()))?;
 
         Ok(Some(meta))
+    }
+
+    pub async fn load_image(&mut self, photo_id: &Identifier, image: &ImageMeta) -> anyhow::Result<Vec<u8>> {
+        let paths = PathsForPhoto::from_id(&self.base_dir, &photo_id);
+
+        let mut image_file = File::open(paths.for_image(&image.image_id, &image.extension))
+            .await
+            .context("Failed to open image file")?;
+
+        let mut vec = Vec::new();
+        image_file
+            .read_to_end(&mut vec)
+            .await
+            .context("Failed to read image file")?;
+
+        Ok(vec)
     }
 
     pub fn photo_exists(&self, id: &Identifier) -> bool {

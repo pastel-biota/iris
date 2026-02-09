@@ -1,5 +1,8 @@
 pub mod new_photo;
 pub mod upload_image;
+pub mod get_photo_meta;
+pub mod scheme;
+pub mod get_image;
 
 use std::sync::Arc;
 
@@ -11,6 +14,8 @@ pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
     OpenApiRouter::new()
         .routes(routes!(new_photo::new_photo))
         .routes(routes!(upload_image::upload_image))
+        .routes(routes!(get_photo_meta::get_photo_meta))
+        .routes(routes!(get_image::get_image))
         .with_state(ctx)
 }
 
@@ -44,5 +49,4 @@ pub fn client_error(reason: &str) -> ClientError {
         reason: reason.to_string()
     }
 }
-
 

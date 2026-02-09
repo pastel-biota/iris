@@ -35,7 +35,7 @@ pub struct UploadImageImageResponse {
 /// Register a new photo, and prepare for the upload for the actual image.
 #[utoipa::path(
     post,
-    path = "/images/{photo_id}/{image_id}",
+    path = "/images/{photo_id}/images/{image_id}",
     params(
         ("photo_id" = String, Path),
         ("image_id" = String, Path),
