@@ -5,8 +5,8 @@ use chrono::{DateTime, FixedOffset};
 
 use crate::{
     Context,
-    infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta},
     model::Identifier,
+    model::{ImageMeta, PhotoMeta, Properties},
     route::{ClientError, SuccessfulResponse, client_error, success},
 };
 
@@ -112,7 +112,7 @@ pub async fn new_photo(
         }
     };
 
-    if param.uploading_images.len() == 0 {
+    if param.uploading_images.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(client_error("There must be at least one image")),
@@ -134,12 +134,7 @@ pub async fn new_photo(
         })
         .collect();
 
-    let gps_lng_lat = match param
-        .properties
-        .gps_lng_lat
-        .as_ref()
-        .map(|loc| loc.as_slice())
-    {
+    let gps_lng_lat = match param.properties.gps_lng_lat.as_deref() {
         None => None,
         Some([lng, lat]) => Some((*lng, *lat)),
         Some(_) => {
@@ -157,7 +152,7 @@ pub async fn new_photo(
             id: id.clone(),
             images: images.clone(),
             shot_time: shot_date,
-            properties: PropertiesMeta {
+            properties: Properties {
                 machine: param.properties.machine,
                 lens: param.properties.lens,
                 gps_lng_lat,

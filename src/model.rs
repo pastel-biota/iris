@@ -79,6 +79,23 @@ impl FromStr for Identifier {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PhotoMeta {
+    pub id: Identifier,
+    pub images: Vec<ImageMeta>,
+    pub properties: Properties,
+    pub shot_time: DateTime<FixedOffset>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ImageMeta {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub image_id: String,
+    pub extension: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Properties {
     pub machine: String,
     pub lens: String,

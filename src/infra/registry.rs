@@ -6,10 +6,9 @@ use tokio::io::AsyncRead;
 use crate::{
     infra::{
         io::PhotoStorageDirectory,
-        meta::{ImageMeta, PhotoMeta},
         photo_index::{PhotoIndex, PhotoReference},
     },
-    model::Identifier,
+    model::{Identifier, ImageMeta, PhotoMeta},
 };
 
 pub struct PhotoStorageRegistry {
@@ -40,7 +39,7 @@ impl PhotoStorageRegistry {
     }
 
     pub fn load_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        if let Some(photo) = self.loaded_photos.get(&id) {
+        if let Some(photo) = self.loaded_photos.get(id) {
             return Ok(Some(photo.clone()));
         }
 

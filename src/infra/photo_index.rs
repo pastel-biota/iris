@@ -7,10 +7,7 @@ use std::{
 use anyhow::Context as _;
 use chrono::{DateTime, FixedOffset};
 
-use crate::{
-    infra::meta::{ImageMeta, PhotoMeta},
-    model::Identifier,
-};
+use crate::model::{Identifier, ImageMeta, PhotoMeta};
 
 pub struct PhotoIndex {
     all_index: AllImageIndex,

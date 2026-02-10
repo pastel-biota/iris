@@ -7,10 +7,7 @@ use tokio::{
     pin,
 };
 
-use crate::{
-    infra::meta::{ImageMeta, PhotoMeta},
-    model::Identifier,
-};
+use crate::model::{Identifier, ImageMeta, PhotoMeta};
 
 pub struct PhotoStorageDirectory {
     base_dir: PathBuf,
@@ -24,21 +21,16 @@ impl PhotoStorageDirectory {
     }
 
     pub fn load_photo_meta(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        let paths = PathsForPhoto::from_id(&self.base_dir, &id);
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         if !self.photo_exists(id) {
             return Ok(None);
         }
 
         let file_content = std::fs::read(paths.meta())
-            .with_context(|| format!("Could not read the metafile for {}", id.to_string()))?;
-        let meta =
-            serde_json::from_slice::<PhotoMeta>(file_content.as_slice()).with_context(|| {
-                format!(
-                    "The metafile for {} exists, but is malformed",
-                    id.to_string()
-                )
-            })?;
+            .with_context(|| format!("Could not read the metafile for {id}"))?;
+        let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
+            .with_context(|| format!("The metafile for {id} exists, but is malformed"))?;
 
         Ok(Some(meta))
     }
@@ -48,7 +40,7 @@ impl PhotoStorageDirectory {
         photo_id: &Identifier,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {
-        let paths = PathsForPhoto::from_id(&self.base_dir, &photo_id);
+        let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
         let mut image_file = File::open(paths.for_image(&image.image_id, &image.extension))
             .await
@@ -144,12 +136,11 @@ impl PathsForPhoto {
     }
 
     pub fn meta(&self) -> PathBuf {
-        self.base_dir
-            .join(format!("{}-meta.json", self.id.to_string()))
+        self.base_dir.join(format!("{}-meta.json", self.id))
     }
 
     pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {
         self.base_dir
-            .join(format!("{}-{}.{}", self.id.to_string(), img_id, ext))
+            .join(format!("{}-{}.{}", self.id, img_id, ext))
     }
 }

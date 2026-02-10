@@ -1,7 +1,4 @@
-use crate::{
-    infra::meta::{ImageMeta, PhotoMeta},
-    model::Properties,
-};
+use crate::model::{ImageMeta, PhotoMeta, Properties};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoScheme {

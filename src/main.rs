@@ -4,19 +4,11 @@ use std::{
 };
 
 use axum::{http::StatusCode, routing::get};
-use tokio::{
-    net::TcpListener,
-    sync::{Mutex, RwLock},
-};
-use utoipa::OpenApi as _;
+use tokio::{net::TcpListener, sync::RwLock};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_redoc::{Redoc, Servable};
 
-use crate::{
-    context::AppContext,
-    infra::{photo_index::PhotoIndex, registry::PhotoStorageRegistry},
-    route::photo_route,
-};
+use crate::{context::AppContext, infra::registry::PhotoStorageRegistry, route::photo_route};
 
 mod context;
 mod infra;
@@ -34,7 +26,7 @@ async fn main() {
         app_context: AppContext {
             dir: PathBuf::from("./_ignored/"),
         },
-        registry: RwLock::new(PhotoStorageRegistry::new(&Path::new("./_ignored/"))),
+        registry: RwLock::new(PhotoStorageRegistry::new(Path::new("./_ignored/"))),
     });
 
     let (router, openapi) = OpenApiRouter::new()

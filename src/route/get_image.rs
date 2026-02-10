@@ -13,20 +13,6 @@ use crate::{
     route::{BinaryBody, ClientError, client_error},
 };
 
-#[derive(serde::Deserialize, utoipa::ToSchema)]
-pub struct GetImageParam {
-    /// A new field.
-    #[schema(example = "request_text")]
-    new_field: String,
-}
-
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct GetImageResponse {
-    /// A new field in response.
-    #[schema(example = "response_text")]
-    field: String,
-}
-
 /// Get actual image
 ///
 /// Retrieves the actual image binary payload.

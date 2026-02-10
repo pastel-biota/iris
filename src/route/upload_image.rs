@@ -2,18 +2,16 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    body::{Body, BodyDataStream},
+    body::Body,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
 };
-use chrono::{DateTime, FixedOffset};
 use futures_util::TryStreamExt as _;
 use tokio_util::io::StreamReader;
 
 use crate::{
     Context,
-    infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta},
     model::Identifier,
     route::{BinaryBody, ClientError, SuccessfulResponse, client_error, success},
 };
