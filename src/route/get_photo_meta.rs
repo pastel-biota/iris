@@ -1,8 +1,17 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 
-use crate::{Context, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success}};
+use crate::{
+    Context,
+    model::Identifier,
+    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success},
+};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct GetPhotoMetaResponse {
@@ -28,7 +37,11 @@ pub async fn get_photo_meta(
     Path((photo_id,)): Path<(String,)>,
 ) -> impl IntoResponse {
     let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (StatusCode::BAD_REQUEST, Json(client_error("Photo id is not valid as the Id"))).into_response()
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(client_error("Photo id is not valid as the Id")),
+        )
+            .into_response();
     };
 
     let mut registry = ctx.registry.write().await;
@@ -37,7 +50,10 @@ pub async fn get_photo_meta(
         Err(err) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!("there was an internal error during reading the photo metafile: {:#?}", err)))
+                Json(client_error(&format!(
+                    "there was an internal error during reading the photo metafile: {:#?}",
+                    err
+                ))),
             )
                 .into_response();
         }
@@ -46,7 +62,7 @@ pub async fn get_photo_meta(
     let Some(photo) = photo else {
         return (
             StatusCode::NOT_FOUND,
-            Json(client_error("the photo with the ID is not found"))
+            Json(client_error("the photo with the ID is not found")),
         )
             .into_response();
     };
@@ -54,8 +70,7 @@ pub async fn get_photo_meta(
 
     (
         StatusCode::OK,
-        Json(success(GetPhotoMetaResponse {
-            photo
-        }))
-    ).into_response()
+        Json(success(GetPhotoMetaResponse { photo })),
+    )
+        .into_response()
 }

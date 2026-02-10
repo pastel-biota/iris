@@ -1,3 +1,4 @@
+use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Identifier, Properties};
@@ -7,6 +8,7 @@ pub struct PhotoMeta {
     pub id: Identifier,
     pub images: Vec<ImageMeta>,
     pub properties: PropertiesMeta,
+    pub shot_time: DateTime<FixedOffset>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -19,4 +21,3 @@ pub struct ImageMeta {
 }
 
 pub type PropertiesMeta = Properties;
-

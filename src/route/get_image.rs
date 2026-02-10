@@ -1,9 +1,17 @@
 use std::sync::Arc;
 
-use axum::{Json, body::Body, extract::{Path, State}, http::{StatusCode, header}, response::IntoResponse};
-use tokio_util::io::ReaderStream;
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::{StatusCode, header},
+    response::IntoResponse,
+};
 
-use crate::{Context, model::Identifier, route::{ClientError, client_error, success}};
+use crate::{
+    Context,
+    model::Identifier,
+    route::{BinaryBody, ClientError, client_error},
+};
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 pub struct GetImageParam {
@@ -19,9 +27,9 @@ pub struct GetImageResponse {
     field: String,
 }
 
-/// A new field
+/// Get actual image
 ///
-/// This is a new field. This initially returns implemented error.
+/// Retrieves the actual image binary payload.
 #[utoipa::path(
     get,
     // TODO: Replace with the correct path - use {xxx} to accept path parameter
@@ -31,16 +39,25 @@ pub struct GetImageResponse {
         ("image_id" = String, Path),
     ),
     responses(
-        (status = OK, description = "The photo/image is found and the image payload is returned.", content_type = "image/*"),
+        (
+            status = OK,
+            description = "The photo/image is found and the image payload is returned.",
+            content_type = "application/octet-stream",
+            body = BinaryBody,
+        ),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
 pub async fn get_image(
     State(ctx): State<Arc<Context>>,
-    Path((photo_id, image_id)): Path<(String,String)>,
+    Path((photo_id, image_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (StatusCode::BAD_REQUEST, Json(client_error("Photo id is not valid as the Id"))).into_response()
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(client_error("Photo id is not valid as the Id")),
+        )
+            .into_response();
     };
 
     let mut registry = ctx.registry.write().await;
@@ -49,7 +66,10 @@ pub async fn get_image(
         Err(err) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!("there was an internal error during reading the photo metafile: {:#?}", err)))
+                Json(client_error(&format!(
+                    "there was an internal error during reading the photo metafile: {:#?}",
+                    err
+                ))),
             )
                 .into_response();
         }
@@ -58,7 +78,7 @@ pub async fn get_image(
     let Some(photo) = photo else {
         return (
             StatusCode::NOT_FOUND,
-            Json(client_error("the photo with the ID is not found"))
+            Json(client_error("the photo with the ID is not found")),
         )
             .into_response();
     };
@@ -66,7 +86,9 @@ pub async fn get_image(
     let Some(image_meta) = photo.images.iter().find(|image| image.image_id == image_id) else {
         return (
             StatusCode::NOT_FOUND,
-            Json(client_error("the photo was found, but the image with the ID is not found"))
+            Json(client_error(
+                "the photo was found, but the image with the ID is not found",
+            )),
         )
             .into_response();
     };
@@ -77,7 +99,10 @@ pub async fn get_image(
         Err(err) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!("there was an internal error during reading the photo metafile: {:#?}", err)))
+                Json(client_error(&format!(
+                    "there was an internal error during reading the photo metafile: {:#?}",
+                    err
+                ))),
             )
                 .into_response();
         }
@@ -85,9 +110,8 @@ pub async fn get_image(
 
     (
         StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, "image/jpeg")
-        ],
+        [(header::CONTENT_TYPE, "image/jpeg")],
         photo_stream,
-    ).into_response()
+    )
+        .into_response()
 }

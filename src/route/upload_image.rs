@@ -1,11 +1,22 @@
 use std::sync::Arc;
 
-use axum::{Json, body::{Body, BodyDataStream}, extract::{Path, State}, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    body::{Body, BodyDataStream},
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 use chrono::{DateTime, FixedOffset};
 use futures_util::TryStreamExt as _;
 use tokio_util::io::StreamReader;
 
-use crate::{Context, infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta}, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, success}};
+use crate::{
+    Context,
+    infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta},
+    model::Identifier,
+    route::{BinaryBody, ClientError, SuccessfulResponse, client_error, success},
+};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct UploadImageResponse {
@@ -27,7 +38,7 @@ pub struct UploadImageImageResponse {
     name: String,
 
     #[schema(example = "01AAAA")]
-    image_id: String
+    image_id: String,
 }
 
 /// Registers a new photo
@@ -35,12 +46,12 @@ pub struct UploadImageImageResponse {
 /// Register a new photo, and prepare for the upload for the actual image.
 #[utoipa::path(
     post,
-    path = "/images/{photo_id}/images/{image_id}",
+    path = "/{photo_id}/images/{image_id}",
     params(
         ("photo_id" = String, Path),
         ("image_id" = String, Path),
     ),
-    request_body(content_type = "image/*"),
+    request_body(content = BinaryBody, content_type = "application/octet-stream"),
     responses(
         (status = OK, description = "The image was uploaded.", body = SuccessfulResponse<UploadImageResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
@@ -54,18 +65,19 @@ pub async fn upload_image(
     let photo_id = match photo_id.parse::<Identifier>() {
         Ok(id) => id,
         Err(_) => {
-            return (StatusCode::BAD_REQUEST, Json(client_error("The photo_id has malformed format")))
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(client_error("The photo_id has malformed format")),
+            )
                 .into_response();
-        },
+        }
     };
 
     let mut registry = ctx.registry.write().await;
-    let mut reader = StreamReader::new(
-        body.into_data_stream()
-            .map_err(std::io::Error::other)
-    );
+    let mut reader = StreamReader::new(body.into_data_stream().map_err(std::io::Error::other));
 
-    registry.upload_image(&photo_id, &image_id, "jpg", &mut reader)
+    registry
+        .upload_image(&photo_id, &image_id, "jpg", &mut reader)
         .await
         .unwrap();
 

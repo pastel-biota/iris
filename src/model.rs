@@ -3,7 +3,7 @@ use std::{fmt, str::FromStr};
 use chrono::{DateTime, Datelike, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Identifier {
     pub year: i32,
     pub month: u32,
@@ -24,7 +24,24 @@ impl Identifier {
 
 impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:04}{:02}_{}-{}", self.year, self.month, self.file_name, self.ulid)
+        write!(
+            f,
+            "{:04}{:02}_{}-{}",
+            self.year, self.month, self.file_name, self.ulid
+        )
+    }
+}
+
+impl Serialize for Identifier {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Identifier {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
     }
 }
 
@@ -45,7 +62,8 @@ impl FromStr for Identifier {
         }
 
         let rest = &s[7..];
-        let last_dash = rest.rfind('-')
+        let last_dash = rest
+            .rfind('-')
             .ok_or_else(|| anyhow::anyhow!("Expected '-' separator between file_name and ulid"))?;
 
         let file_name = rest[..last_dash].to_string();

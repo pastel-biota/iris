@@ -1,4 +1,7 @@
-use crate::{infra::meta::{ImageMeta, PhotoMeta}, model::Properties};
+use crate::{
+    infra::meta::{ImageMeta, PhotoMeta},
+    model::Properties,
+};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
@@ -17,10 +20,7 @@ impl From<PhotoMeta> for PhotoScheme {
     fn from(value: PhotoMeta) -> Self {
         Self {
             id: value.id.to_string(),
-            images: value.images
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            images: value.images.into_iter().map(Into::into).collect(),
             properties: value.properties.into(),
         }
     }
@@ -64,8 +64,14 @@ pub struct PropertiesSchema {
     #[schema(example = "SIGMA")]
     pub lens: String,
 
-    #[schema(example = json!([36.123456, 138.123456]))]
-    pub gps_lng_lat: Option<(f32, f32)>,
+    #[schema(
+        example = json!([36.123456, 138.123456]),
+        min_items = 2,
+        max_items = 2,
+    )]
+    // Can't do Option<(f32, f32)> here because it results to
+    // OpenAPI 3.0 Incompatible scheme!
+    pub gps_lng_lat: Option<Vec<f32>>,
 }
 
 impl From<Properties> for PropertiesSchema {
@@ -73,8 +79,7 @@ impl From<Properties> for PropertiesSchema {
         Self {
             machine: value.machine,
             lens: value.lens,
-            gps_lng_lat: value.gps_lng_lat,
+            gps_lng_lat: value.gps_lng_lat.map(|(lng, lat)| vec![lng, lat]),
         }
     }
 }
-

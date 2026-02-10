@@ -3,7 +3,12 @@ use std::sync::Arc;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use chrono::{DateTime, FixedOffset};
 
-use crate::{Context, infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta}, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, success}};
+use crate::{
+    Context,
+    infra::meta::{ImageMeta, PhotoMeta, PropertiesMeta},
+    model::Identifier,
+    route::{ClientError, SuccessfulResponse, client_error, success},
+};
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 pub struct NewPhotoParam {
@@ -47,8 +52,14 @@ pub struct PropertiesSchema {
     #[schema(example = "SIGMA")]
     pub lens: String,
 
-    #[schema(example = json!([36.123456, 138.123456]))]
-    pub gps_lng_lat: Option<(f32, f32)>,
+    #[schema(
+        example = json!([36.123456, 138.123456]),
+        min_items = 2,
+        max_items = 2,
+    )]
+    // Can't do Option<(f32, f32)> here because it results to
+    // OpenAPI 3.0 Incompatible scheme!
+    pub gps_lng_lat: Option<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -71,7 +82,7 @@ pub struct NewPhotoImageResponse {
     name: String,
 
     #[schema(example = "01AAAA")]
-    image_id: String
+    image_id: String,
 }
 
 /// Registers a new photo
@@ -79,7 +90,7 @@ pub struct NewPhotoImageResponse {
 /// Register a new photo, and prepare for the upload for the actual image.
 #[utoipa::path(
     post,
-    path = "/images",
+    path = "/",
     request_body(content_type = "application/json", content = NewPhotoParam),
     responses(
         (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<NewPhotoResponse>),
@@ -93,23 +104,26 @@ pub async fn new_photo(
     let shot_date = match DateTime::<FixedOffset>::parse_from_rfc3339(&param.shot_date) {
         Ok(date) => date,
         Err(err) => {
-            return (StatusCode::BAD_REQUEST, Json(client_error(&format!("shot_date was invalid: {}", err))))
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(client_error(&format!("shot_date was invalid: {}", err))),
+            )
                 .into_response();
         }
     };
 
     if param.uploading_images.len() == 0 {
-        return (StatusCode::BAD_REQUEST, Json(client_error("There must be at least one image")))
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(client_error("There must be at least one image")),
+        )
             .into_response();
     }
 
-    let id = Identifier::new(
-        &shot_date,
-        &param.file_name,
-        &ulid::Ulid::new().to_string()
-    );
+    let id = Identifier::new(&shot_date, &param.file_name, &ulid::Ulid::new().to_string());
 
-    let images: Vec<_> = param.uploading_images
+    let images: Vec<_> = param
+        .uploading_images
         .into_iter()
         .map(|img| ImageMeta {
             width: img.width,
@@ -120,20 +134,41 @@ pub async fn new_photo(
         })
         .collect();
 
-    let mut registry = ctx.registry.write().await;
-    registry.new_photo(PhotoMeta {
-        id: id.clone(),
-        images: images.clone(),
-        properties: PropertiesMeta {
-            machine: param.properties.machine,
-            lens: param.properties.lens,
-            gps_lng_lat: param.properties.gps_lng_lat,
+    let gps_lng_lat = match param
+        .properties
+        .gps_lng_lat
+        .as_ref()
+        .map(|loc| loc.as_slice())
+    {
+        None => None,
+        Some([lng, lat]) => Some((*lng, *lat)),
+        Some(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(client_error("properties.gps_lng_lat is not in the right form: expected two element array/tuple"))
+            )
+                .into_response();
         }
-    }).unwrap();
+    };
+
+    let mut registry = ctx.registry.write().await;
+    registry
+        .new_photo(PhotoMeta {
+            id: id.clone(),
+            images: images.clone(),
+            shot_time: shot_date,
+            properties: PropertiesMeta {
+                machine: param.properties.machine,
+                lens: param.properties.lens,
+                gps_lng_lat,
+            },
+        })
+        .unwrap();
 
     let response = NewPhotoResponse {
         id: id.to_string(),
-        images: images.into_iter()
+        images: images
+            .into_iter()
             .map(|image| NewPhotoImageResponse {
                 name: image.name,
                 image_id: image.image_id,

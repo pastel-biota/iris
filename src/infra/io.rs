@@ -1,9 +1,16 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use tokio::{fs::File, io::{AsyncRead, AsyncReadExt as _}, pin};
+use tokio::{
+    fs::File,
+    io::{AsyncRead, AsyncReadExt as _},
+    pin,
+};
 
-use crate::{infra::meta::{ImageMeta, PhotoMeta}, model::Identifier};
+use crate::{
+    infra::meta::{ImageMeta, PhotoMeta},
+    model::Identifier,
+};
 
 pub struct PhotoStorageDirectory {
     base_dir: PathBuf,
@@ -25,13 +32,22 @@ impl PhotoStorageDirectory {
 
         let file_content = std::fs::read(paths.meta())
             .with_context(|| format!("Could not read the metafile for {}", id.to_string()))?;
-        let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
-            .with_context(|| format!("The metafile for {} exists, but is malformed", id.to_string()))?;
+        let meta =
+            serde_json::from_slice::<PhotoMeta>(file_content.as_slice()).with_context(|| {
+                format!(
+                    "The metafile for {} exists, but is malformed",
+                    id.to_string()
+                )
+            })?;
 
         Ok(Some(meta))
     }
 
-    pub async fn load_image(&mut self, photo_id: &Identifier, image: &ImageMeta) -> anyhow::Result<Vec<u8>> {
+    pub async fn load_image(
+        &mut self,
+        photo_id: &Identifier,
+        image: &ImageMeta,
+    ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, &photo_id);
 
         let mut image_file = File::open(paths.for_image(&image.image_id, &image.extension))
@@ -61,8 +77,12 @@ impl PhotoStorageDirectory {
         }
 
         if !paths.base_dir.exists() {
-            std::fs::create_dir_all(&paths.base_dir)
-                .with_context(|| format!("Could not create directory '{}' for new photo", &paths.base_dir.display()))?;
+            std::fs::create_dir_all(&paths.base_dir).with_context(|| {
+                format!(
+                    "Could not create directory '{}' for new photo",
+                    &paths.base_dir.display()
+                )
+            })?;
         }
 
         let meta = serde_json::to_vec_pretty(&meta)
@@ -74,7 +94,12 @@ impl PhotoStorageDirectory {
         Ok(())
     }
 
-    pub async fn upload_photo(&mut self, id: &Identifier, image: &ImageMeta, image_data: impl AsyncRead) -> anyhow::Result<()> {
+    pub async fn upload_photo(
+        &mut self,
+        id: &Identifier,
+        image: &ImageMeta,
+        image_data: impl AsyncRead,
+    ) -> anyhow::Result<()> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         let path = paths.for_image(&image.image_id, &image.extension);
@@ -93,7 +118,9 @@ impl PhotoStorageDirectory {
             Ok(_) => Ok(()),
             Err(err) => {
                 if let Err(err) = tokio::fs::remove_file(path).await {
-                    eprintln!("warning: The file could not be removed after the failed write: {err}");
+                    eprintln!(
+                        "warning: The file could not be removed after the failed write: {err}"
+                    );
                 }
                 Err(err).context("The image content could not be written to the file")
             }
@@ -117,11 +144,12 @@ impl PathsForPhoto {
     }
 
     pub fn meta(&self) -> PathBuf {
-        self.base_dir.join(format!("{}-meta.json", self.id.to_string()))
+        self.base_dir
+            .join(format!("{}-meta.json", self.id.to_string()))
     }
 
     pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {
-        self.base_dir.join(format!("{}-{}.{}", self.id.to_string(), img_id, ext))
+        self.base_dir
+            .join(format!("{}-{}.{}", self.id.to_string(), img_id, ext))
     }
 }
-
