@@ -22,6 +22,14 @@ pub struct NewPhotoParam {
     #[schema(example = "IMG_0001.JPG")]
     file_name: String,
 
+    /// The hexadecimal representation of SHA256 hash.
+    #[schema(
+        example = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        min_length = 64,
+        max_length = 64,
+    )]
+    original_sha256: String,
+
     /// The list of dimensions of the images to be uploaded later.
     /// Each images will get each image ID assigned for the later upload.
     uploading_images: Vec<NewImages>,
@@ -93,7 +101,7 @@ pub struct NewPhotoImageResponse {
     path = "/",
     request_body(content_type = "application/json", content = NewPhotoParam),
     responses(
-        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<NewPhotoResponse>),
+        (status = CREATED, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<NewPhotoResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
@@ -151,6 +159,7 @@ pub async fn new_photo(
         .new_photo(PhotoMeta {
             id: id.clone(),
             images: images.clone(),
+            original_sha256: param.original_sha256,
             shot_time: shot_date,
             properties: Properties {
                 machine: param.properties.machine,

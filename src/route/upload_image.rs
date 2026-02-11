@@ -13,7 +13,7 @@ use tokio_util::io::StreamReader;
 use crate::{
     Context,
     model::Identifier,
-    route::{BinaryBody, ClientError, SuccessfulResponse, client_error, success},
+    route::{BinaryBody, ClientError, SuccessfulResponse, client_error, photo_route, success},
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -22,21 +22,8 @@ pub struct UploadImageResponse {
     #[schema(example = "202601_img_0001_jpg-01AAAA")]
     id: String,
 
-    /// The list of identifiers assigned to the specified images.
-    /// The image ID is used to upload the actual image later.
-    images: Vec<UploadImageImageResponse>,
-
     /// How much of parallel upload is accepted for the upload of this image.
     max_parallelism: u8,
-}
-
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct UploadImageImageResponse {
-    #[schema(example = "1080p")]
-    name: String,
-
-    #[schema(example = "01AAAA")]
-    image_id: String,
 }
 
 /// Registers a new photo
@@ -79,5 +66,10 @@ pub async fn upload_image(
         .await
         .unwrap();
 
-    (StatusCode::CREATED, Json(success(()))).into_response()
+    (StatusCode::OK, Json(success(
+        UploadImageResponse {
+            id: photo_id.to_string(),
+            max_parallelism: 4,
+        }
+    ))).into_response()
 }

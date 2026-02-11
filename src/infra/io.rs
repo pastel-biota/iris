@@ -29,8 +29,10 @@ impl PhotoStorageDirectory {
 
         let file_content = std::fs::read(paths.meta())
             .with_context(|| format!("Could not read the metafile for {id}"))?;
-        let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
-            .with_context(|| format!("The metafile for {id} exists, but is malformed"))?;
+        let meta =
+            serde_json::from_slice::<PhotoMeta>(file_content.as_slice()).with_context(|| {
+                format!("The metafile for {id} exists, but is malformed")
+            })?;
 
         Ok(Some(meta))
     }
@@ -136,7 +138,8 @@ impl PathsForPhoto {
     }
 
     pub fn meta(&self) -> PathBuf {
-        self.base_dir.join(format!("{}-meta.json", self.id))
+        self.base_dir
+            .join(format!("{}-meta.json", self.id))
     }
 
     pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {

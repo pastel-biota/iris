@@ -82,6 +82,7 @@ impl FromStr for Identifier {
 pub struct PhotoMeta {
     pub id: Identifier,
     pub images: Vec<ImageMeta>,
+    pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
 }

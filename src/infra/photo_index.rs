@@ -1,27 +1,33 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    path::{Path, PathBuf},
-};
+pub mod all;
+pub mod original_hash;
+
+use std::{collections::HashMap, fs::File, path::Path};
 
 use anyhow::Context as _;
 use chrono::{DateTime, FixedOffset};
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::{infra::photo_index::{all::AllImageIndex, original_hash::OriginalSha256Index}, model::{Identifier, ImageMeta, PhotoMeta}};
 
 pub struct PhotoIndex {
     all_index: AllImageIndex,
+    hash_index: OriginalSha256Index,
 }
 
 impl PhotoIndex {
     pub fn new(base_dir: &Path) -> Self {
         PhotoIndex {
             all_index: AllImageIndex::new(&base_dir.join("all.json")),
+            hash_index: OriginalSha256Index::new(&base_dir.join("sha256.json")),
         }
     }
 
     pub fn add_new_image(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
-        self.all_index.add(photo)
+        self.all_index.add(photo)?;
+        self.hash_index.add(photo)?;
+
+        assert!(self.all_index.total_count()? == self.hash_index.total_count()?);
+
+        Ok(())
     }
 
     pub fn list_images(
@@ -30,6 +36,13 @@ impl PhotoIndex {
         limit: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         self.all_index.list_images(offset, limit)
+    }
+
+    pub fn get_photos_list_from_hashes_list<'s, 'h>(
+        &'s mut self,
+        hash: &'h [String],
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+        self.hash_index.get_photos_list_from_hashes_list(hash)
     }
 
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
@@ -42,6 +55,7 @@ pub struct PhotoReference {
     pub id: Identifier,
     pub year: i32,
     pub month: u32,
+    pub hash: String,
     pub images: Vec<ImageReference>,
     pub shot_time: DateTime<FixedOffset>,
 }
@@ -52,6 +66,7 @@ impl From<PhotoMeta> for PhotoReference {
             year: value.id.year,
             month: value.id.month,
             id: value.id,
+            hash: value.original_sha256,
             images: value.images.into_iter().map(Into::into).collect(),
             shot_time: value.shot_time,
         }
@@ -75,147 +90,34 @@ impl From<ImageMeta> for ImageReference {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-struct AllImageIndex {
-    path: PathBuf,
-    content: Option<AllImageIndexEntry>,
-}
+pub trait PhotoIndexProvider {
+    const INDEX_NAME: &'static str;
+    type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;
 
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
-struct AllImageIndexEntry {
-    total_count: u32,
-    pics: HashMap<i32, HashMap<u32, Vec<PhotoReference>>>,
-}
+    fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()>;
+    fn total_count(&mut self) -> anyhow::Result<u32>;
 
-impl AllImageIndex {
-    pub fn new(path: &Path) -> AllImageIndex {
-        AllImageIndex {
-            path: path.to_path_buf(),
-            content: None,
-        }
-    }
-
-    pub fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
-        let index = self.load()?;
-
-        let month_pics = index
-            .pics
-            .entry(photo.id.year)
-            .or_insert(HashMap::new())
-            .entry(photo.id.month)
-            .or_insert(vec![]);
-
-        if month_pics
-            .iter()
-            .any(|stored_photo| stored_photo.id == photo.id)
-        {
-            anyhow::bail!("There already is an identifier with that photo")
+    fn load_to_file(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {
+        if !path.exists() {
+            return self.init(path);
         }
 
-        index.total_count += 1;
+        let file = File::open(path)
+            .context(format!("Failed to open a file for the {}", Self::INDEX_NAME))?;
 
-        // figure out where to insert. The array should be sorted by shot_time's asc
-        let index = month_pics
-            .iter()
-            .position(|stored_path| stored_path.shot_time > photo.shot_time)
-            .unwrap_or(month_pics.len());
-        month_pics.insert(index, photo.clone().into());
-
-        self.save()?;
-
-        Ok(())
+        serde_json::from_reader(file)
+            .context(format!("The {} contains invalid content", Self::INDEX_NAME))
     }
 
-    pub fn total_count(&mut self) -> anyhow::Result<u32> {
-        let index = self.load()?;
-        Ok(index.total_count)
-    }
-
-    pub fn list_images(
-        &mut self,
-        offset: usize,
-        limit: usize,
-    ) -> anyhow::Result<Vec<PhotoReference>> {
-        let index = self.load()?;
-
-        let mut cursor: usize = 0;
-        let mut years = index.pics.iter().collect::<Vec<_>>();
-        years.sort_by_key(|(year, _)| -**year);
-
-        let mut refs = Vec::with_capacity(limit);
-        for (_, months) in years {
-            let mut months = months.iter().collect::<Vec<_>>();
-            months.sort_by_key(|(month, _)| **month);
-            months.reverse();
-
-            for (_, image) in months {
-                let skipping_elems = if cursor < offset {
-                    (offset - cursor).min(image.len())
-                } else {
-                    0
-                };
-
-                let required_elems = limit - refs.len();
-
-                let adding_refs = image
-                    .iter()
-                    .rev()
-                    .skip(skipping_elems)
-                    .take(required_elems)
-                    .cloned()
-                    .collect::<Vec<_>>();
-                cursor += skipping_elems + adding_refs.len();
-
-                refs.extend(adding_refs);
-            }
-        }
-
-        Ok(refs)
-    }
-
-    fn load(&mut self) -> anyhow::Result<&mut AllImageIndexEntry> {
-        // Fusing these two fns is really hard somehow
-        self._load()?;
-        Ok(self.content.as_mut().expect("Just initialized"))
-    }
-
-    fn _load(&mut self) -> anyhow::Result<()> {
-        if self.content.is_some() {
-            return Ok(());
-        }
-
-        if !self.path.exists() {
-            dbg!(&self.path);
-            self.content = Some(self.init()?);
-            return Ok(());
-        }
-
-        let file = File::open(&self.path).context("Failed to open a file for all image index")?;
-
-        self.content = serde_json::from_reader(file)
-            .context("The all image index contains invalid content")?;
-
-        Ok(())
-    }
-
-    fn save(&mut self) -> anyhow::Result<()> {
+    fn init(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {
         let mut file =
-            File::create(&self.path).context("Failed to create a file for all image index")?;
+            File::create(path).context(format!("Failed to create a file for the {}", Self::INDEX_NAME))?;
 
-        serde_json::to_writer_pretty(&mut file, &self.load()?)
-            .context("Failed to write a empty entry for all image index")?;
-
-        Ok(())
-    }
-
-    fn init(&mut self) -> anyhow::Result<AllImageIndexEntry> {
-        let mut file =
-            File::create(&self.path).context("Failed to create a file for all image index")?;
-
-        let value = AllImageIndexEntry::default();
+        let value = Self::Entry::default();
         serde_json::to_writer_pretty(&mut file, &value)
-            .context("Failed to write a empty entry for all image index")?;
+            .context(format!("Failed to write a empty entry for the {}", Self::INDEX_NAME))?;
 
         Ok(value)
     }
 }
+

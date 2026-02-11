@@ -9,7 +9,7 @@ use axum::{
 
 use crate::{
     Context,
-    route::{ClientError, SuccessfulResponse, client_error, success},
+    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success},
 };
 
 #[derive(Clone, Debug, serde::Deserialize)]
@@ -21,23 +21,7 @@ pub struct GetImagesListQuery {
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 struct GetImagesListResponse {
     total_count: u32,
-    photos: Vec<PhotoSchema>,
-}
-
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-struct PhotoSchema {
-    id: String,
-    year: i32,
-    month: u32,
-    images: Vec<ImageSchema>,
-    shot_time: String,
-}
-
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-struct ImageSchema {
-    id: String,
-    height: u32,
-    ext: String,
+    photos: Vec<PhotoReferenceSchema>,
 }
 
 /// Get the list of images.
@@ -91,24 +75,7 @@ pub async fn get_images_list(
 
     let photo = GetImagesListResponse {
         total_count,
-        photos: photos
-            .into_iter()
-            .map(|photo| PhotoSchema {
-                year: photo.id.year,
-                month: photo.id.month,
-                id: photo.id.to_string(),
-                shot_time: photo.shot_time.to_rfc3339(),
-                images: photo
-                    .images
-                    .into_iter()
-                    .map(|img| ImageSchema {
-                        id: img.id,
-                        height: img.height,
-                        ext: img.ext,
-                    })
-                    .collect(),
-            })
-            .collect(),
+        photos: photos.into_iter().map(Into::into).collect(),
     };
 
     (StatusCode::OK, Json(success(photo))).into_response()

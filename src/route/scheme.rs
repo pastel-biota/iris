@@ -1,10 +1,18 @@
-use crate::model::{ImageMeta, PhotoMeta, Properties};
+use crate::{infra::photo_index::{ImageReference, PhotoReference}, model::{ImageMeta, PhotoMeta, Properties}};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
     /// Identifier assigned to the created photo.
     #[schema(example = "202601_img_0001_jpg-01AAAA")]
     id: String,
+
+    /// The hexadecimal representation of SHA256 hash.
+    #[schema(
+        example = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        min_length = 64,
+        max_length = 64,
+    )]
+    original_sha256: String,
 
     /// The list of identifiers assigned to the specified images.
     /// The image ID is used to upload the actual image later.
@@ -17,6 +25,7 @@ impl From<PhotoMeta> for PhotoScheme {
     fn from(value: PhotoMeta) -> Self {
         Self {
             id: value.id.to_string(),
+            original_sha256: value.original_sha256,
             images: value.images.into_iter().map(Into::into).collect(),
             properties: value.properties.into(),
         }
@@ -80,3 +89,47 @@ impl From<Properties> for PropertiesSchema {
         }
     }
 }
+
+#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct PhotoReferenceSchema {
+    id: String,
+    year: i32,
+    month: u32,
+    original_sha256: String,
+    images: Vec<ImageReferenceSchema>,
+    shot_time: String,
+}
+
+impl From<PhotoReference> for PhotoReferenceSchema {
+    fn from(value: PhotoReference) -> Self {
+        PhotoReferenceSchema {
+            year: value.id.year,
+            month: value.id.month,
+            id: value.id.to_string(),
+            original_sha256: value.hash,
+            shot_time: value.shot_time.to_rfc3339(),
+            images: value.images
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ImageReferenceSchema {
+    id: String,
+    height: u32,
+    ext: String,
+}
+
+impl From<ImageReference> for ImageReferenceSchema {
+    fn from(value: ImageReference) -> Self {
+        ImageReferenceSchema {
+            id: value.id,
+            height: value.height,
+            ext: value.ext,
+        }
+    }
+}
+

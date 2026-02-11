@@ -34,6 +34,13 @@ impl PhotoStorageRegistry {
         self.index.list_images(offset, limit)
     }
 
+    pub fn get_photos_list_by_hashes_list<'s, 'h>(
+        &'s mut self,
+        hash_to_lookup: &'h [String],
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+        self.index.get_photos_list_from_hashes_list(hash_to_lookup)
+    }
+
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
         self.index.total_count()
     }
@@ -73,7 +80,7 @@ impl PhotoStorageRegistry {
         image_id: &str,
         ext: &str,
         content: impl AsyncRead,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<ImageMeta> {
         let photo = self
             .dir
             .load_photo_meta(id)?
@@ -93,6 +100,8 @@ impl PhotoStorageRegistry {
             );
         }
 
-        self.dir.upload_photo(id, image, content).await
+        self.dir.upload_photo(id, image, content).await?;
+
+        Ok(image.clone())
     }
 }
