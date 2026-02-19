@@ -32,10 +32,14 @@ impl PhotoIndex {
 
     pub fn list_images(
         &mut self,
-        offset: usize,
-        limit: usize,
+        beginning: Option<&Identifier>,
+        size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
-        self.all_index.list_images(offset, limit)
+        if let Some(beginning) = beginning {
+            self.all_index.list_images_beginning_from_photo(beginning, size)
+        } else {
+            self.all_index.list_first_n_images(size)
+        }
     }
 
     pub fn get_photos_list_from_hashes_list<'s, 'h>(

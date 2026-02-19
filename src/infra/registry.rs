@@ -28,10 +28,10 @@ impl PhotoStorageRegistry {
 
     pub fn list_images(
         &mut self,
-        offset: usize,
-        limit: usize,
+        beginning: Option<&Identifier>,
+        size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
-        self.index.list_images(offset, limit)
+        self.index.list_images(beginning, size)
     }
 
     pub fn get_photos_list_by_hashes_list<'s, 'h>(

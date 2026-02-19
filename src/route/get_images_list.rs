@@ -1,26 +1,23 @@
 use std::sync::Arc;
 
 use axum::{
-    Json,
-    extract::{Query, State},
-    http::StatusCode,
-    response::IntoResponse,
+    Json, extract::{Query, State}, http::StatusCode, response::IntoResponse
 };
 
 use crate::{
-    Context,
-    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success},
+    Context, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success}
 };
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct GetImagesListQuery {
-    limit: Option<u32>,
-    offset: Option<u32>,
+    cursor: Option<String>,
+    size: Option<u32>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 struct GetImagesListResponse {
     total_count: u32,
+    next_cursor: Option<String>,
     photos: Vec<PhotoReferenceSchema>,
 }
 
@@ -29,8 +26,8 @@ struct GetImagesListResponse {
     get,
     path = "/",
     params(
-        ("offset" = Option<usize>, Query, nullable, description = "the default is 0"),
-        ("limit" = Option<usize>, Query, nullable, description = "the default is 200"),
+        ("cursor" = Option<String>, Query, nullable, description = "The pagination cursor - retrieves from beginning"),
+        ("size" = Option<u32>, Query, nullable, description = "the default is 50"),
     ),
     responses(
         (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<GetImagesListResponse>),
@@ -41,11 +38,11 @@ pub async fn get_images_list(
     State(ctx): State<Arc<Context>>,
     Query(query): Query<GetImagesListQuery>,
 ) -> impl IntoResponse {
-    let offset = query.offset.unwrap_or(0).try_into().unwrap();
-    let limit = query.limit.unwrap_or(200).try_into().unwrap();
+    let cursor = query.cursor.map(|cursor| cursor.parse::<Identifier>()).transpose().unwrap();
+    let size = query.size.unwrap_or(50).try_into().unwrap();
 
     let mut registry = ctx.registry.write().await;
-    let photos = match registry.list_images(offset, limit) {
+    let photos = match registry.list_images(cursor.as_ref(), size) {
         Ok(photo) => photo,
         Err(err) => {
             return (
@@ -73,8 +70,15 @@ pub async fn get_images_list(
         }
     };
 
+    let next_cursor = if photos.len() == size {
+        photos.last().map(|photo| &photo.id)
+    } else {
+        None
+    };
+
     let photo = GetImagesListResponse {
         total_count,
+        next_cursor: next_cursor.map(|cursor| cursor.to_string()),
         photos: photos.into_iter().map(Into::into).collect(),
     };
 

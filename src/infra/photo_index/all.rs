@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 
-use crate::{infra::photo_index::PhotoReference, model::PhotoMeta};
+use crate::{infra::photo_index::PhotoReference, model::{Identifier, PhotoMeta}};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AllImageIndex {
@@ -18,6 +18,24 @@ pub struct AllImageIndex {
 struct AllImageIndexEntry {
     total_count: u32,
     pics: HashMap<i32, HashMap<u32, Vec<PhotoReference>>>,
+}
+
+impl AllImageIndexEntry {
+    fn registered_months(&self) -> anyhow::Result<Vec<(i32, u32)>> {
+        let mut months = self.pics
+            .iter()
+            .flat_map(|(year, months)| {
+                months
+                    .keys()
+                    .map(|month| (*year, *month))
+            })
+            .collect::<Vec<_>>();
+
+        months.sort();
+        months.reverse();
+
+        Ok(months)
+    }
 }
 
 impl AllImageIndex {
@@ -64,46 +82,45 @@ impl AllImageIndex {
         Ok(index.total_count)
     }
 
-    pub fn list_images(
+    pub fn list_first_n_images(
         &mut self,
-        offset: usize,
-        limit: usize,
+        size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         let index = self.load()?;
 
-        let mut cursor: usize = 0;
-        let mut years = index.pics.iter().collect::<Vec<_>>();
-        years.sort_by_key(|(year, _)| -**year);
+        let images = index.registered_months()?
+            .into_iter()
+            .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
 
-        let mut refs = Vec::with_capacity(limit);
-        for (_, months) in years {
-            let mut months = months.iter().collect::<Vec<_>>();
-            months.sort_by_key(|(month, _)| **month);
-            months.reverse();
+        Ok(images.take(size).cloned().collect())
+    }
 
-            for (_, image) in months {
-                let skipping_elems = if cursor < offset {
-                    (offset - cursor).min(image.len())
-                } else {
-                    0
-                };
+    pub fn list_images_beginning_from_photo(
+        &mut self,
+        ident: &Identifier,
+        size: usize,
+    ) -> anyhow::Result<Vec<PhotoReference>> {
+        let index = self.load()?;
 
-                let required_elems = limit - refs.len();
+        let photos = index.pics
+            .get(&ident.year)
+            .and_then(|year| year.get(&ident.month))
+            .with_context(|| format!("The month {}/{} is not registered", ident.year, ident.month))?;
 
-                let adding_refs = image
-                    .iter()
-                    .rev()
-                    .skip(skipping_elems)
-                    .take(required_elems)
-                    .cloned()
-                    .collect::<Vec<_>>();
-                cursor += skipping_elems + adding_refs.len();
+        let month_image = photos
+            .iter()
+            .rev()
+            .skip_while(|photo| &photo.id != ident)
+            .skip(1);
 
-                refs.extend(adding_refs);
-            }
-        }
+        let following_images = index.registered_months()?
+            .into_iter()
+            .skip_while(|month| *month >= (ident.year, ident.month))
+            .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
 
-        Ok(refs)
+        let images = month_image.chain(following_images);
+
+        Ok(images.take(size).cloned().collect())
     }
 
     fn load(&mut self) -> anyhow::Result<&mut AllImageIndexEntry> {

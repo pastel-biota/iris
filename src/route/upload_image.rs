@@ -13,7 +13,7 @@ use tokio_util::io::StreamReader;
 use crate::{
     Context,
     model::Identifier,
-    route::{BinaryBody, ClientError, SuccessfulResponse, client_error, photo_route, success},
+    route::{BinaryBody, ClientError, SuccessfulResponse, client_error, success},
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
