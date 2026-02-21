@@ -1,11 +1,16 @@
 use std::sync::Arc;
 
 use axum::{
-    Json, extract::{Query, State}, http::StatusCode, response::IntoResponse
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
 };
 
 use crate::{
-    Context, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success}
+    Context,
+    model::Identifier,
+    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success},
 };
 
 #[derive(Clone, Debug, serde::Deserialize)]
@@ -38,7 +43,11 @@ pub async fn get_images_list(
     State(ctx): State<Arc<Context>>,
     Query(query): Query<GetImagesListQuery>,
 ) -> impl IntoResponse {
-    let cursor = query.cursor.map(|cursor| cursor.parse::<Identifier>()).transpose().unwrap();
+    let cursor = query
+        .cursor
+        .map(|cursor| cursor.parse::<Identifier>())
+        .transpose()
+        .unwrap();
     let size = query.size.unwrap_or(50).try_into().unwrap();
 
     let mut registry = ctx.registry.write().await;

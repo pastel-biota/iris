@@ -4,25 +4,26 @@ use std::{
 };
 
 use axum::{http::StatusCode, routing::get};
-use tokio::{
-    net::TcpListener,
-    sync::RwLock,
-};
+use tokio::{net::TcpListener, sync::RwLock};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_redoc::{Redoc, Servable};
 
 use crate::{
-    config::parse_config, context::AppContext, infra::registry::PhotoStorageRegistry, route::photo_route, services::{ServiceContext, build_service_context}
+    config::parse_config,
+    context::AppContext,
+    infra::registry::PhotoStorageRegistry,
+    route::photo_route,
+    services::{ServiceContext, build_service_context},
 };
 
+pub mod config;
 mod context;
 mod infra;
 pub mod model;
 mod route;
 pub mod services;
-pub mod config;
 
 pub struct Context {
     pub app_context: AppContext,
@@ -59,10 +60,7 @@ async fn main() {
             }),
         )
         .merge(Redoc::with_url("/docs", openapi))
-        .layer(
-            CorsLayer::permissive()
-                .allow_origin(["http://localhost:5173".parse().unwrap()])
-        );
+        .layer(CorsLayer::permissive().allow_origin(["http://localhost:5173".parse().unwrap()]));
 
     axum::serve(TcpListener::bind("localhost:8080").await.unwrap(), router)
         .await

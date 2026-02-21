@@ -11,5 +11,3 @@ pub fn parse_config() -> anyhow::Result<Config> {
     let file = std::fs::read_to_string("./membrane.toml")?;
     Ok(toml::from_str(&file)?)
 }
-
-

@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success}};
+use crate::{
+    Context,
+    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success},
+};
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 pub struct GetPhotosListByHashesListParam {
@@ -45,15 +48,18 @@ pub async fn get_photos_list_by_hashes_list(
 ) -> impl IntoResponse {
     let mut registry = ctx.registry.write().await;
 
-    let photos = registry
-        .get_photos_list_by_hashes_list(param.hashes.as_slice());
+    let photos = registry.get_photos_list_by_hashes_list(param.hashes.as_slice());
     let photos = match photos {
         Ok(photos) => photos,
         Err(err) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!("There was an error during searching photos from hashes: {}", err)))
-            ).into_response();
+                Json(client_error(&format!(
+                    "There was an error during searching photos from hashes: {}",
+                    err
+                ))),
+            )
+                .into_response();
         }
     };
 

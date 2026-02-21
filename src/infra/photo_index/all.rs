@@ -6,7 +6,10 @@ use std::{
 
 use anyhow::Context as _;
 
-use crate::{infra::photo_index::PhotoReference, model::{Identifier, PhotoMeta}};
+use crate::{
+    infra::photo_index::PhotoReference,
+    model::{Identifier, PhotoMeta},
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AllImageIndex {
@@ -22,13 +25,10 @@ struct AllImageIndexEntry {
 
 impl AllImageIndexEntry {
     fn registered_months(&self) -> anyhow::Result<Vec<(i32, u32)>> {
-        let mut months = self.pics
+        let mut months = self
+            .pics
             .iter()
-            .flat_map(|(year, months)| {
-                months
-                    .keys()
-                    .map(|month| (*year, *month))
-            })
+            .flat_map(|(year, months)| months.keys().map(|month| (*year, *month)))
             .collect::<Vec<_>>();
 
         months.sort();
@@ -82,13 +82,11 @@ impl AllImageIndex {
         Ok(index.total_count)
     }
 
-    pub fn list_first_n_images(
-        &mut self,
-        size: usize,
-    ) -> anyhow::Result<Vec<PhotoReference>> {
+    pub fn list_first_n_images(&mut self, size: usize) -> anyhow::Result<Vec<PhotoReference>> {
         let index = self.load()?;
 
-        let images = index.registered_months()?
+        let images = index
+            .registered_months()?
             .into_iter()
             .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
 
@@ -102,10 +100,13 @@ impl AllImageIndex {
     ) -> anyhow::Result<Vec<PhotoReference>> {
         let index = self.load()?;
 
-        let photos = index.pics
+        let photos = index
+            .pics
             .get(&ident.year)
             .and_then(|year| year.get(&ident.month))
-            .with_context(|| format!("The month {}/{} is not registered", ident.year, ident.month))?;
+            .with_context(|| {
+                format!("The month {}/{} is not registered", ident.year, ident.month)
+            })?;
 
         let month_image = photos
             .iter()
@@ -113,7 +114,8 @@ impl AllImageIndex {
             .skip_while(|photo| &photo.id != ident)
             .skip(1);
 
-        let following_images = index.registered_months()?
+        let following_images = index
+            .registered_months()?
             .into_iter()
             .skip_while(|month| *month >= (ident.year, ident.month))
             .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
