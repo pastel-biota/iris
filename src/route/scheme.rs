@@ -68,7 +68,7 @@ pub struct PropertiesSchema {
     pub machine: String,
 
     #[schema(example = "SIGMA")]
-    pub lens: String,
+    pub lens: Option<String>,
 
     #[schema(
         example = json!([36.123456, 138.123456]),
@@ -77,7 +77,22 @@ pub struct PropertiesSchema {
     )]
     // Can't do Option<(f32, f32)> here because it results to
     // OpenAPI 3.0 Incompatible scheme!
-    pub gps_lng_lat: Option<Vec<f32>>,
+    pub gps_lat_lng: Option<Vec<f32>>,
+
+    #[schema(example = 5.4)]
+    pub f_number: Option<f64>,
+
+    #[schema(example = 400)]
+    pub shutter_speed: Option<f32>,
+
+    #[schema(example = true)]
+    pub shutter_speed_controlled: Option<bool>,
+
+    #[schema(example = 160)]
+    pub iso: Option<u64>,
+
+    #[schema(example = 50.0)]
+    pub focal: Option<f64>,
 }
 
 impl From<Properties> for PropertiesSchema {
@@ -85,7 +100,12 @@ impl From<Properties> for PropertiesSchema {
         Self {
             machine: value.machine,
             lens: value.lens,
-            gps_lng_lat: value.gps_lng_lat.map(|(lng, lat)| vec![lng, lat]),
+            gps_lat_lng: value.gps_lat_lng.map(|(lng, lat)| vec![lng, lat]),
+            f_number: value.f_number,
+            shutter_speed: value.shutter_speed.map(|speed| speed.0),
+            shutter_speed_controlled: value.shutter_speed_controlled,
+            iso: value.iso,
+            focal: value.focal,
         }
     }
 }

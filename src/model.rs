@@ -98,7 +98,35 @@ pub struct ImageMeta {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Properties {
+    pub gps_lat_lng: Option<(f32, f32)>,
     pub machine: String,
-    pub lens: String,
-    pub gps_lng_lat: Option<(f32, f32)>,
+    pub lens: Option<String>,
+    pub f_number: Option<f64>,
+    pub shutter_speed: Option<NormalizedRational>,
+    pub shutter_speed_controlled: Option<bool>,
+    pub iso: Option<u64>,
+    pub focal: Option<f64>,
+    pub orientation: Option<Orientation>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NormalizedRational(pub f32);
+
+#[derive(Debug)]
+pub struct Rational(pub i32, pub i32);
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Orientation {
+    pub rotation: Rotation,
+    pub flip: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Rotation {
+    Upright,
+    UpsideDown,
+    CounterClockwise,
+    Clockwise,
+}
+

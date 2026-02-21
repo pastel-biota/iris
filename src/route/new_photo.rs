@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use chrono::{DateTime, FixedOffset};
+use tracing::Level;
 
 use crate::{
     Context,
-    model::Identifier,
-    model::{ImageMeta, PhotoMeta, Properties},
-    route::{ClientError, SuccessfulResponse, client_error, success},
+    model::{Identifier, ImageMeta, NormalizedRational, PhotoMeta, Properties},
+    route::{ClientError, SuccessfulResponse, client_error, success}, services::property::process_properties,
 };
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -58,7 +58,7 @@ pub struct PropertiesSchema {
     pub machine: String,
 
     #[schema(example = "SIGMA")]
-    pub lens: String,
+    pub lens: Option<String>,
 
     #[schema(
         example = json!([36.123456, 138.123456]),
@@ -67,7 +67,25 @@ pub struct PropertiesSchema {
     )]
     // Can't do Option<(f32, f32)> here because it results to
     // OpenAPI 3.0 Incompatible scheme!
-    pub gps_lng_lat: Option<Vec<f32>>,
+    pub gps_lat_lng: Option<Vec<f32>>,
+
+    #[schema(example = 5.4)]
+    pub f_number: Option<f64>,
+
+    #[schema(example = 400)]
+    pub shutter_speed: Option<f32>,
+
+    #[schema(example = true)]
+    pub shutter_speed_controlled: Option<bool>,
+
+    #[schema(example = 160)]
+    pub iso: Option<u64>,
+
+    #[schema(example = 50.0)]
+    pub focal: Option<f64>,
+
+    // #[schema(example = "SIGMA")]
+    // pub orientation: Orientation,
 }
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -142,9 +160,9 @@ pub async fn new_photo(
         })
         .collect();
 
-    let gps_lng_lat = match param.properties.gps_lng_lat.as_deref() {
+    let gps_lat_lng = match param.properties.gps_lat_lng.as_deref() {
         None => None,
-        Some([lng, lat]) => Some((*lng, *lat)),
+        Some([lat, lng]) => Some((*lat, *lng)),
         Some(_) => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -154,6 +172,20 @@ pub async fn new_photo(
         }
     };
 
+    let properties = Properties {
+        machine: param.properties.machine,
+        lens: param.properties.lens,
+        gps_lat_lng,
+        f_number: param.properties.f_number,
+        shutter_speed: param.properties.shutter_speed
+            .map(|speed| NormalizedRational(speed)),
+        shutter_speed_controlled: param.properties.shutter_speed_controlled,
+        iso: param.properties.iso,
+        focal: param.properties.focal,
+        orientation: None,
+    };
+    let properties = process_properties(&ctx.service.proceessor, properties).unwrap();
+
     let mut registry = ctx.registry.write().await;
     registry
         .new_photo(PhotoMeta {
@@ -161,11 +193,7 @@ pub async fn new_photo(
             images: images.clone(),
             original_sha256: param.original_sha256,
             shot_time: shot_date,
-            properties: Properties {
-                machine: param.properties.machine,
-                lens: param.properties.lens,
-                gps_lng_lat,
-            },
+            properties,
         })
         .unwrap();
 

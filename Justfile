@@ -4,6 +4,8 @@ new-route NAME:
 sync-postman:
   #!/usr/bin/env /usr/bin/zsh
 
+  set -eu
+
   eval $(cat .env | grep -v "#" | sed 's/^\(.\+=.\+\)/export \1/' - )
   echo ":: Environment variable is loaded"
 
