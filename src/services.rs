@@ -1,5 +1,9 @@
-use crate::{config::Config, services::property::{ProcessorContext, create_property_processor_context}};
+use crate::{
+    config::Config,
+    services::property::{ProcessorContext, create_property_processor_context},
+};
 
+pub mod process;
 pub mod property;
 
 pub struct ServiceContext {
@@ -11,4 +15,3 @@ pub fn build_service_context(config: &Config) -> Result<ServiceContext, anyhow::
         proceessor: create_property_processor_context(&config.processors)?,
     })
 }
-

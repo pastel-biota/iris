@@ -1,7 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, bail};
-use tokio::io::AsyncRead;
 
 use crate::{
     infra::{
@@ -32,6 +31,10 @@ impl PhotoStorageRegistry {
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         self.index.list_images(beginning, size)
+    }
+
+    pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {
+        self.index.image_exists_with_hash(hash)
     }
 
     pub fn get_photos_list_by_hashes_list<'s, 'h>(
@@ -67,9 +70,9 @@ impl PhotoStorageRegistry {
         self.dir.load_image(id, image).await
     }
 
-    pub fn new_photo(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
+    pub fn new_photo(&mut self, meta: &PhotoMeta) -> anyhow::Result<()> {
         self.dir.create_new_photo_meta(meta.clone())?;
-        self.index.add_new_image(&meta)?;
+        self.index.add_new_image(meta)?;
 
         Ok(())
     }
@@ -79,7 +82,7 @@ impl PhotoStorageRegistry {
         id: &Identifier,
         image_id: &str,
         ext: &str,
-        content: impl AsyncRead,
+        content: &[u8],
     ) -> anyhow::Result<ImageMeta> {
         let photo = self
             .dir

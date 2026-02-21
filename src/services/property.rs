@@ -13,7 +13,9 @@ pub struct ProcessorContext {
     hide_params: HideParameter,
 }
 
-pub fn create_property_processor_context(config: &ProcessorConfig) -> Result<ProcessorContext, anyhow::Error> {
+pub fn create_property_processor_context(
+    config: &ProcessorConfig,
+) -> Result<ProcessorContext, anyhow::Error> {
     Ok(ProcessorContext {
         hide_locations: parse_config::<HideLocation>(config)?,
         hide_params: parse_config::<HideParameter>(config)?,
@@ -21,7 +23,9 @@ pub fn create_property_processor_context(config: &ProcessorConfig) -> Result<Pro
 }
 
 fn parse_config<T: PropertyProcessor>(config: &ProcessorConfig) -> Result<T, anyhow::Error> {
-    let config_values = config.0.get(T::CONFIG_KEY)
+    let config_values = config
+        .0
+        .get(T::CONFIG_KEY)
         .cloned()
         .unwrap_or_else(|| toml::Value::Table(Map::new()));
 
@@ -30,7 +34,10 @@ fn parse_config<T: PropertyProcessor>(config: &ProcessorConfig) -> Result<T, any
     T::with_config(config)
 }
 
-pub fn process_properties(context: &ProcessorContext, props: Properties) -> Result<Properties, anyhow::Error> {
+pub fn process_properties(
+    context: &ProcessorContext,
+    props: Properties,
+) -> Result<Properties, anyhow::Error> {
     let props = context.hide_locations.process(props)?;
     let props = context.hide_params.process(props)?;
 
@@ -49,7 +56,7 @@ pub struct HideLocation(HideLocationConfig);
 
 #[derive(Debug, serde::Deserialize)]
 pub struct HideLocationConfig {
-    latlngs: Vec<(f32, f32)>
+    latlngs: Vec<(f64, f64)>,
 }
 
 impl PropertyProcessor for HideLocation {
@@ -63,17 +70,22 @@ impl PropertyProcessor for HideLocation {
         };
 
         if self.0.latlngs.iter().any(|masked_location| {
-            let dist = (
-                (masked_location.0 - lat_lng.0).powf(2.0) +
-                (masked_location.1 - lat_lng.1).powf(2.0)
-            ).sqrt();
+            let dist = ((masked_location.0 - lat_lng.0).powf(2.0)
+                + (masked_location.1 - lat_lng.1).powf(2.0))
+            .sqrt();
             tracing::trace!("{:?} v. {:?} = {}", masked_location, lat_lng, dist);
             dist <= 0.03
         }) {
-            tracing::info!("This location was hidden when registeration: {:?}", properties.gps_lat_lng);
+            tracing::info!(
+                "This location was hidden when registeration: {:?}",
+                properties.gps_lat_lng
+            );
             properties.gps_lat_lng = None;
         } else {
-            tracing::debug!("This location is not hidden when registeration: {:?}", properties.gps_lat_lng);
+            tracing::debug!(
+                "This location is not hidden when registeration: {:?}",
+                properties.gps_lat_lng
+            );
         }
 
         Ok(properties)
@@ -104,7 +116,12 @@ impl PropertyProcessor for HideParameter {
     type Config = HideParameterConfig;
 
     fn process(&self, mut properties: Properties) -> Result<Properties, anyhow::Error> {
-        if self.0.hiding_machine.iter().any(|hiding_machine| properties.machine.contains(hiding_machine)) {
+        if self
+            .0
+            .hiding_machine
+            .iter()
+            .any(|hiding_machine| properties.machine.contains(hiding_machine))
+        {
             properties.gps_lat_lng = None;
             properties.lens = None;
             properties.f_number = None;
@@ -121,4 +138,3 @@ impl PropertyProcessor for HideParameter {
         Ok(Self(config))
     }
 }
-

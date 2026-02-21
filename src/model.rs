@@ -7,16 +7,14 @@ use serde::{Deserialize, Serialize};
 pub struct Identifier {
     pub year: i32,
     pub month: u32,
-    file_name: String,
     ulid: String,
 }
 
 impl Identifier {
-    pub fn new(shot_date: &DateTime<FixedOffset>, file_name: &str, ulid: &str) -> Self {
+    pub fn new(shot_date: &DateTime<FixedOffset>, ulid: &str) -> Self {
         Identifier {
             year: shot_date.year(),
             month: shot_date.month(),
-            file_name: file_name.to_lowercase().replace('.', "_"),
             ulid: ulid.to_string(),
         }
     }
@@ -24,11 +22,7 @@ impl Identifier {
 
 impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{:04}{:02}_{}-{}",
-            self.year, self.month, self.file_name, self.ulid
-        )
+        write!(f, "{:04}{:02}-{}", self.year, self.month, self.ulid)
     }
 }
 
@@ -49,32 +43,16 @@ impl FromStr for Identifier {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Format: {year:04}{month:02}_{file_name}-{ulid}
+        // Format: {year:04}{month:02}-{ulid}
         if s.len() < 8 {
             anyhow::bail!("Identifier string too short");
         }
 
         let year: i32 = s[..4].parse()?;
         let month: u32 = s[4..6].parse()?;
+        let ulid = s[7..].to_string();
 
-        if s.as_bytes()[6] != b'_' {
-            anyhow::bail!("Expected '_' at position 6");
-        }
-
-        let rest = &s[7..];
-        let last_dash = rest
-            .rfind('-')
-            .ok_or_else(|| anyhow::anyhow!("Expected '-' separator between file_name and ulid"))?;
-
-        let file_name = rest[..last_dash].to_string();
-        let ulid = rest[last_dash + 1..].to_string();
-
-        Ok(Identifier {
-            year,
-            month,
-            file_name,
-            ulid,
-        })
+        Ok(Identifier { year, month, ulid })
     }
 }
 
@@ -98,7 +76,7 @@ pub struct ImageMeta {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Properties {
-    pub gps_lat_lng: Option<(f32, f32)>,
+    pub gps_lat_lng: Option<(f64, f64)>,
     pub machine: String,
     pub lens: Option<String>,
     pub f_number: Option<f64>,
@@ -115,6 +93,19 @@ pub struct NormalizedRational(pub f32);
 #[derive(Debug)]
 pub struct Rational(pub i32, pub i32);
 
+impl Rational {
+    pub fn to_f64(&self) -> f64 {
+        let Rational(denom, num) = self;
+        (*num as f64) / (*denom as f64)
+    }
+
+    pub fn normalize_to_one(&self) -> NormalizedRational {
+        let Rational(denom, num) = self;
+
+        let new_num = (*denom as f32) / (*num as f32);
+        NormalizedRational(new_num)
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Orientation {
@@ -129,4 +120,3 @@ pub enum Rotation {
     CounterClockwise,
     Clockwise,
 }
-

@@ -1,4 +1,7 @@
-use crate::{infra::photo_index::{ImageReference, PhotoReference}, model::{ImageMeta, PhotoMeta, Properties}};
+use crate::{
+    infra::photo_index::{ImageReference, PhotoReference},
+    model::{ImageMeta, PhotoMeta, Properties},
+};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
@@ -10,7 +13,7 @@ pub struct PhotoScheme {
     #[schema(
         example = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         min_length = 64,
-        max_length = 64,
+        max_length = 64
     )]
     original_sha256: String,
 
@@ -77,7 +80,7 @@ pub struct PropertiesSchema {
     )]
     // Can't do Option<(f32, f32)> here because it results to
     // OpenAPI 3.0 Incompatible scheme!
-    pub gps_lat_lng: Option<Vec<f32>>,
+    pub gps_lat_lng: Option<Vec<f64>>,
 
     #[schema(example = 5.4)]
     pub f_number: Option<f64>,
@@ -128,10 +131,7 @@ impl From<PhotoReference> for PhotoReferenceSchema {
             id: value.id.to_string(),
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
-            images: value.images
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            images: value.images.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -152,4 +152,3 @@ impl From<ImageReference> for ImageReferenceSchema {
         }
     }
 }
-

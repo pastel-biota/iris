@@ -1,10 +1,9 @@
 pub mod get_image;
 pub mod get_images_list;
 pub mod get_photo_meta;
+pub mod get_photos_list_by_hashes_list;
 pub mod new_photo;
 pub mod scheme;
-pub mod upload_image;
-pub mod get_photos_list_by_hashes_list;
 
 use std::{ops::Deref, sync::Arc};
 
@@ -16,11 +15,12 @@ use crate::Context;
 pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
     OpenApiRouter::new()
         .routes(routes!(new_photo::new_photo))
-        .routes(routes!(upload_image::upload_image))
         .routes(routes!(get_photo_meta::get_photo_meta))
         .routes(routes!(get_image::get_image))
         .routes(routes!(get_images_list::get_images_list))
-        .routes(routes!(get_photos_list_by_hashes_list::get_photos_list_by_hashes_list))
+        .routes(routes!(
+            get_photos_list_by_hashes_list::get_photos_list_by_hashes_list
+        ))
         .with_state(ctx)
 }
 

@@ -1,115 +1,28 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use chrono::{DateTime, FixedOffset};
-use tracing::Level;
+use axum::{
+    Json,
+    body::{Body, to_bytes},
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+};
 
 use crate::{
     Context,
-    model::{Identifier, ImageMeta, NormalizedRational, PhotoMeta, Properties},
-    route::{ClientError, SuccessfulResponse, client_error, success}, services::property::process_properties,
+    model::{Identifier, ImageMeta, PhotoMeta},
+    route::{
+        BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
+    },
+    services::{process::process_image, property::process_properties},
 };
-
-#[derive(serde::Deserialize, utoipa::ToSchema)]
-pub struct NewPhotoParam {
-    /// The datetime the photo was taken.
-    /// The shot timstamp is used for the part of identification and indexing.
-    #[schema(example = "2026-01-02T03:45:06+09:00")]
-    shot_date: String,
-
-    /// The file name of the original picture.
-    /// This is also used for the part of identification, but any arbitary string can be specified.
-    #[schema(example = "IMG_0001.JPG")]
-    file_name: String,
-
-    /// The hexadecimal representation of SHA256 hash.
-    #[schema(
-        example = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        min_length = 64,
-        max_length = 64,
-    )]
-    original_sha256: String,
-
-    /// The list of dimensions of the images to be uploaded later.
-    /// Each images will get each image ID assigned for the later upload.
-    uploading_images: Vec<NewImages>,
-
-    properties: PropertiesSchema,
-}
-
-#[derive(serde::Deserialize, utoipa::ToSchema)]
-pub struct NewImages {
-    #[schema(example = "1080p")]
-    name: String,
-
-    #[schema(example = "jpg")]
-    ext: String,
-
-    #[schema(example = 1920)]
-    width: u32,
-
-    #[schema(example = 1080)]
-    height: u32,
-}
-
-#[derive(Clone, Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct PropertiesSchema {
-    #[schema(example = "X-T4")]
-    pub machine: String,
-
-    #[schema(example = "SIGMA")]
-    pub lens: Option<String>,
-
-    #[schema(
-        example = json!([36.123456, 138.123456]),
-        min_items = 2,
-        max_items = 2,
-    )]
-    // Can't do Option<(f32, f32)> here because it results to
-    // OpenAPI 3.0 Incompatible scheme!
-    pub gps_lat_lng: Option<Vec<f32>>,
-
-    #[schema(example = 5.4)]
-    pub f_number: Option<f64>,
-
-    #[schema(example = 400)]
-    pub shutter_speed: Option<f32>,
-
-    #[schema(example = true)]
-    pub shutter_speed_controlled: Option<bool>,
-
-    #[schema(example = 160)]
-    pub iso: Option<u64>,
-
-    #[schema(example = 50.0)]
-    pub focal: Option<f64>,
-
-    // #[schema(example = "SIGMA")]
-    // pub orientation: Orientation,
-}
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct NewPhotoResponse {
-    /// Identifier assigned to the created photo.
-    #[schema(example = "202601_img_0001_jpg-01AAAA")]
-    id: String,
-
-    /// The list of identifiers assigned to the specified images.
-    /// The image ID is used to upload the actual image later.
-    images: Vec<NewPhotoImageResponse>,
-
-    /// How much of parallel upload is accepted for the upload of this image.
-    max_parallelism: u8,
+    photo: PhotoScheme,
 }
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct NewPhotoImageResponse {
-    #[schema(example = "1080p")]
-    name: String,
-
-    #[schema(example = "01AAAA")]
-    image_id: String,
-}
+pub const MAX_BODY: usize = 100 * 1024 * 1024;
 
 /// Registers a new photo
 ///
@@ -117,96 +30,84 @@ pub struct NewPhotoImageResponse {
 #[utoipa::path(
     post,
     path = "/",
-    request_body(content_type = "application/json", content = NewPhotoParam),
+    request_body(content = BinaryBody, content_type = "application/octet-stream"),
     responses(
         (status = CREATED, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<NewPhotoResponse>),
+        (status = CONFLICT, description = "There already was a photo registered with the matching hash", body = ClientError),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
-pub async fn new_photo(
-    State(ctx): State<Arc<Context>>,
-    Json(param): Json<NewPhotoParam>,
-) -> impl IntoResponse {
-    let shot_date = match DateTime::<FixedOffset>::parse_from_rfc3339(&param.shot_date) {
-        Ok(date) => date,
-        Err(err) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(client_error(&format!("shot_date was invalid: {}", err))),
-            )
-                .into_response();
-        }
-    };
+pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl IntoResponse {
+    let bytes = to_bytes(body, MAX_BODY).await.unwrap();
 
-    if param.uploading_images.is_empty() {
+    if bytes.len() == MAX_BODY {
         return (
-            StatusCode::BAD_REQUEST,
-            Json(client_error("There must be at least one image")),
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(client_error(&format!(
+                "The file size is restricted to under {MAX_BODY} bytes"
+            ))),
         )
             .into_response();
     }
 
-    let id = Identifier::new(&shot_date, &param.file_name, &ulid::Ulid::new().to_string());
-
-    let images: Vec<_> = param
-        .uploading_images
-        .into_iter()
-        .map(|img| ImageMeta {
-            width: img.width,
-            height: img.height,
-            name: img.name,
-            extension: img.ext,
-            image_id: ulid::Ulid::new().to_string(),
-        })
-        .collect();
-
-    let gps_lat_lng = match param.properties.gps_lat_lng.as_deref() {
-        None => None,
-        Some([lat, lng]) => Some((*lat, *lng)),
-        Some(_) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(client_error("properties.gps_lng_lat is not in the right form: expected two element array/tuple"))
-            )
-                .into_response();
+    for i in 0..3 {
+        for b in 0..15 {
+            print!("{:02x} ", bytes[i * 16 + b]);
         }
-    };
+        print!(" | ");
+        for b in 0..15 {
+            let byte = bytes[i * 16 + b] as char;
+            print!(
+                "{}",
+                if byte.is_ascii() && !byte.is_ascii_control() {
+                    byte
+                } else {
+                    '.'
+                }
+            );
+        }
+        println!();
+    }
 
-    let properties = Properties {
-        machine: param.properties.machine,
-        lens: param.properties.lens,
-        gps_lat_lng,
-        f_number: param.properties.f_number,
-        shutter_speed: param.properties.shutter_speed
-            .map(|speed| NormalizedRational(speed)),
-        shutter_speed_controlled: param.properties.shutter_speed_controlled,
-        iso: param.properties.iso,
-        focal: param.properties.focal,
-        orientation: None,
-    };
-    let properties = process_properties(&ctx.service.proceessor, properties).unwrap();
+    let processed_image = process_image(&bytes).await.unwrap();
 
     let mut registry = ctx.registry.write().await;
+
+    if registry
+        .image_exists_with_hash(&processed_image.sha256)
+        .unwrap()
+    {
+        return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
+    }
+
+    let properties =
+        process_properties(&ctx.service.proceessor, processed_image.image_property).unwrap();
+
+    let photo_id = Identifier::new(&processed_image.shot_time, &ulid::Ulid::new().to_string());
+    let image_id = ulid::Ulid::new().to_string();
+
+    let photo = PhotoMeta {
+        id: photo_id.clone(),
+        images: vec![ImageMeta {
+            name: "original".to_string(),
+            width: 1920,
+            height: 1080,
+            image_id: image_id.clone(),
+            extension: "jpg".to_string(),
+        }],
+        original_sha256: processed_image.sha256,
+        shot_time: processed_image.shot_time,
+        properties,
+    };
+
+    registry.new_photo(&photo).unwrap();
     registry
-        .new_photo(PhotoMeta {
-            id: id.clone(),
-            images: images.clone(),
-            original_sha256: param.original_sha256,
-            shot_time: shot_date,
-            properties,
-        })
+        .upload_image(&photo.id, &image_id, "jpg", &bytes)
+        .await
         .unwrap();
 
     let response = NewPhotoResponse {
-        id: id.to_string(),
-        images: images
-            .into_iter()
-            .map(|image| NewPhotoImageResponse {
-                name: image.name,
-                image_id: image.image_id,
-            })
-            .collect(),
-        max_parallelism: 4,
+        photo: photo.into(),
     };
 
     (StatusCode::CREATED, Json(success(response))).into_response()

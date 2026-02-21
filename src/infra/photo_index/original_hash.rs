@@ -6,7 +6,10 @@ use std::{
 
 use anyhow::Context as _;
 
-use crate::{infra::photo_index::{PhotoIndexProvider, PhotoReference}, model::PhotoMeta};
+use crate::{
+    infra::photo_index::{PhotoIndexProvider, PhotoReference},
+    model::PhotoMeta,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct OriginalSha256Index {
@@ -27,7 +30,9 @@ impl PhotoIndexProvider for OriginalSha256Index {
     fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
         let index = self.load_mut()?;
 
-        index.pics.insert(photo.original_sha256.clone(), photo.clone().into());
+        index
+            .pics
+            .insert(photo.original_sha256.clone(), photo.clone().into());
         index.total_count += 1;
 
         self.save()?;
@@ -36,8 +41,7 @@ impl PhotoIndexProvider for OriginalSha256Index {
     }
 
     fn total_count(&mut self) -> anyhow::Result<u32> {
-        self.load_mut()
-            .map(|index| index.total_count)
+        self.load_mut().map(|index| index.total_count)
     }
 }
 
@@ -49,17 +53,21 @@ impl OriginalSha256Index {
         }
     }
 
-    pub fn get_photos_list_from_hashes_list<'s, 'h>(&'s mut self, hashes: &'h [String]) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+    pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {
+        let index = self.load_mut()?;
+        Ok(index.pics.contains_key(hash))
+    }
+
+    pub fn get_photos_list_from_hashes_list<'s, 'h>(
+        &'s mut self,
+        hashes: &'h [String],
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
         let index = self.load_mut()?;
 
-        Ok(
-            hashes
-                .iter()
-                .flat_map(|hash| index.pics
-                    .get(hash)
-                    .map(|photo| (hash.as_str(), photo)))
-                .collect::<HashMap<_, _>>()
-        )
+        Ok(hashes
+            .iter()
+            .flat_map(|hash| index.pics.get(hash).map(|photo| (hash.as_str(), photo)))
+            .collect::<HashMap<_, _>>())
     }
 
     fn load_mut(&mut self) -> anyhow::Result<&mut IndexEntry> {
@@ -73,8 +81,8 @@ impl OriginalSha256Index {
     }
 
     fn save(&mut self) -> anyhow::Result<()> {
-        let mut file = File::create(&self.path)
-            .context("Failed to create a file for the sha256 index")?;
+        let mut file =
+            File::create(&self.path).context("Failed to create a file for the sha256 index")?;
 
         serde_json::to_writer_pretty(&mut file, &self.load_mut()?)
             .context("Failed to write a empty entry for the sha256 indexx")?;
