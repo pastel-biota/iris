@@ -67,7 +67,6 @@ pub struct PhotoMeta {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ImageMeta {
-    pub name: String,
     pub width: u32,
     pub height: u32,
     pub image_id: String,

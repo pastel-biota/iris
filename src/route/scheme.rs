@@ -37,11 +37,8 @@ impl From<PhotoMeta> for PhotoScheme {
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoImages {
-    #[schema(example = "01AAAA")]
-    image_id: String,
-
     #[schema(example = "1080p")]
-    name: String,
+    image_id: String,
 
     #[schema(example = "jpg")]
     ext: String,
@@ -56,7 +53,6 @@ pub struct PhotoImages {
 impl From<ImageMeta> for PhotoImages {
     fn from(value: ImageMeta) -> Self {
         Self {
-            name: value.name,
             width: value.width,
             height: value.height,
             image_id: value.image_id,

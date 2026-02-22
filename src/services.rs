@@ -5,6 +5,7 @@ use crate::{
 
 pub mod process;
 pub mod property;
+pub mod resize;
 
 pub struct ServiceContext {
     pub proceessor: ProcessorContext,

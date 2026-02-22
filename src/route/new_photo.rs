@@ -14,7 +14,7 @@ use crate::{
     route::{
         BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
     },
-    services::{process::process_image, property::process_properties},
+    services::{process::process_image, property::process_properties, resize::resize_images},
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -50,24 +50,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
             .into_response();
     }
 
-    for i in 0..3 {
-        for b in 0..15 {
-            print!("{:02x} ", bytes[i * 16 + b]);
-        }
-        print!(" | ");
-        for b in 0..15 {
-            let byte = bytes[i * 16 + b] as char;
-            print!(
-                "{}",
-                if byte.is_ascii() && !byte.is_ascii_control() {
-                    byte
-                } else {
-                    '.'
-                }
-            );
-        }
-        println!();
-    }
+    tracing::info!("Beginning registeration");
 
     let processed_image = process_image(&bytes).await.unwrap();
 
@@ -84,27 +67,38 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         process_properties(&ctx.service.proceessor, processed_image.image_property).unwrap();
 
     let photo_id = Identifier::new(&processed_image.shot_time, &ulid::Ulid::new().to_string());
-    let image_id = ulid::Ulid::new().to_string();
+
+    tracing::info!("Starting resize");
+    let resized = resize_images(&bytes).await.unwrap();
+    let resized = resized
+        .resized
+        .into_iter()
+        .map(|(target, resized)| {
+            (ImageMeta {
+                width: target.w,
+                height: target.h,
+                extension: target.ext.extensions_str()[0].to_string(),
+                image_id: target.id.to_string(),
+            }, resized)
+        })
+        .collect::<Vec<_>>();
 
     let photo = PhotoMeta {
         id: photo_id.clone(),
-        images: vec![ImageMeta {
-            name: "original".to_string(),
-            width: 1920,
-            height: 1080,
-            image_id: image_id.clone(),
-            extension: "jpg".to_string(),
-        }],
+        images: resized.iter().map(|(img, _)| img.clone()).collect(),
         original_sha256: processed_image.sha256,
         shot_time: processed_image.shot_time,
         properties,
     };
 
     registry.new_photo(&photo).unwrap();
-    registry
-        .upload_image(&photo.id, &image_id, "jpg", &bytes)
-        .await
-        .unwrap();
+
+    for resized in resized {
+        registry
+            .upload_image(&photo.id, &resized.0.image_id, &resized.0.extension, &resized.1)
+            .await
+            .unwrap();
+    }
 
     let response = NewPhotoResponse {
         photo: photo.into(),
