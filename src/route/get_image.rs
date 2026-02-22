@@ -96,7 +96,10 @@ pub async fn get_image(
 
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "image/jpeg")],
+        [
+            (header::CONTENT_TYPE, "image/jpeg"),
+            (header::CACHE_CONTROL, "public, max-age=2592000, immutable")
+        ],
         photo_stream,
     )
         .into_response()
