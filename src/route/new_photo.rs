@@ -14,7 +14,7 @@ use crate::{
     route::{
         BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
     },
-    services::{process::process_image, property::process_properties, resize::resize_images},
+    services::{image::process_image_content, process::process_image, property::process_properties},
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -71,17 +71,17 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
     let photo_id = Identifier::new(&processed_image.shot_time, &ulid::Ulid::new().to_string());
 
     tracing::info!("Starting resize");
-    let resized = resize_images(&bytes).await.unwrap();
-    let resized = resized
+    let processed = process_image_content(&bytes).await.unwrap();
+    let resized = processed
         .resized
         .into_iter()
-        .map(|(target, resized)| {
+        .map(|resized| {
             (ImageMeta {
-                width: target.w,
-                height: target.h,
-                extension: target.ext.extensions_str()[0].to_string(),
-                image_id: target.id.to_string(),
-            }, resized)
+                width: resized.target.w,
+                height: resized.target.h,
+                extension: resized.target.ext.extensions_str()[0].to_string(),
+                image_id: resized.target.id.to_string(),
+            }, resized.data)
         })
         .collect::<Vec<_>>();
 
@@ -90,6 +90,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         images: resized.iter().map(|(img, _)| img.clone()).collect(),
         original_sha256: processed_image.sha256,
         shot_time: processed_image.shot_time,
+        representative_rgb: processed.averaged_color.0,
         properties,
     };
 

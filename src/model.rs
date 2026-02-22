@@ -63,6 +63,7 @@ pub struct PhotoMeta {
     pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
+    pub representative_rgb: [u8; 3],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

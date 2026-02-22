@@ -70,6 +70,7 @@ pub struct PhotoReference {
     pub hash: String,
     pub images: Vec<ImageReference>,
     pub shot_time: DateTime<FixedOffset>,
+    pub representative_rgb: [u8; 3],
 }
 
 impl From<PhotoMeta> for PhotoReference {
@@ -81,6 +82,7 @@ impl From<PhotoMeta> for PhotoReference {
             hash: value.original_sha256,
             images: value.images.into_iter().map(Into::into).collect(),
             shot_time: value.shot_time,
+            representative_rgb: value.representative_rgb,
         }
     }
 }

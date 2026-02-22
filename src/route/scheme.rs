@@ -21,6 +21,9 @@ pub struct PhotoScheme {
     /// The image ID is used to upload the actual image later.
     images: Vec<PhotoImages>,
 
+    #[schema(example = "#123456")]
+    representative_color: String,
+
     properties: PropertiesSchema,
 }
 
@@ -31,6 +34,10 @@ impl From<PhotoMeta> for PhotoScheme {
             original_sha256: value.original_sha256,
             images: value.images.into_iter().map(Into::into).collect(),
             properties: value.properties.into(),
+            representative_color: {
+                let [r, g, b] = value.representative_rgb;
+                format!("#{:02x}{:02x}{:02x}", r, g, b)
+            }
         }
     }
 }
@@ -117,6 +124,7 @@ pub struct PhotoReferenceSchema {
     original_sha256: String,
     images: Vec<ImageReferenceSchema>,
     shot_time: String,
+    representative_color: String,
 }
 
 impl From<PhotoReference> for PhotoReferenceSchema {
@@ -128,6 +136,10 @@ impl From<PhotoReference> for PhotoReferenceSchema {
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
             images: value.images.into_iter().map(Into::into).collect(),
+            representative_color: {
+                let [r, g, b] = value.representative_rgb;
+                format!("#{:02x}{:02x}{:02x}", r, g, b)
+            }
         }
     }
 }

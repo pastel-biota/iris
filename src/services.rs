@@ -3,9 +3,9 @@ use crate::{
     services::property::{ProcessorContext, create_property_processor_context},
 };
 
-pub mod process;
 pub mod property;
-pub mod resize;
+pub mod process;
+pub mod image;
 
 pub struct ServiceContext {
     pub proceessor: ProcessorContext,
