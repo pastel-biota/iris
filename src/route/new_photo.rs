@@ -54,13 +54,15 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
 
     let processed_image = process_image(&bytes).await.unwrap();
 
-    let mut registry = ctx.registry.write().await;
-
-    if registry
-        .image_exists_with_hash(&processed_image.sha256)
-        .unwrap()
     {
-        return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
+        let mut registry = ctx.registry.write().await;
+
+        if registry
+            .image_exists_with_hash(&processed_image.sha256)
+            .unwrap()
+        {
+            return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
+        }
     }
 
     let properties =
@@ -91,6 +93,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         properties,
     };
 
+    let mut registry = ctx.registry.write().await;
     registry.new_photo(&photo).unwrap();
 
     for resized in resized {

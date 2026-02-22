@@ -6,15 +6,15 @@ use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator};
 pub struct ResizeTargets {
     pub w: u32,
     pub h: u32,
-    pub name: &'static str,
+    pub id: &'static str,
     pub ext: ImageFormat,
 }
 
 pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
-    ResizeTargets { w: 128, h: 128, name: "icon", ext: ImageFormat::WebP },
-    ResizeTargets { w: 640, h: 640, name: "thumbnail", ext: ImageFormat::WebP },
-    ResizeTargets { w: 1920, h: 1080, name: "main", ext: ImageFormat::WebP },
-    ResizeTargets { w: 2560, h: 1440, name: "highres", ext: ImageFormat::Png },
+    ResizeTargets { w: 128, h: 128, id: "icon", ext: ImageFormat::WebP },
+    ResizeTargets { w: 480, h: 480, id: "thumbnail", ext: ImageFormat::WebP },
+    ResizeTargets { w: 1920, h: 1080, id: "main", ext: ImageFormat::WebP },
+    ResizeTargets { w: 2560, h: 1440, id: "highres", ext: ImageFormat::Png },
 ];
 
 pub struct Resized {
@@ -33,11 +33,11 @@ pub async fn resize_images(original: &[u8]) -> anyhow::Result<Resized> {
             .par_iter()
             .map(|target| {
                 let mut byte = Cursor::new(Vec::new());
-                tracing::debug!("Resizing: {}", target.name);
+                tracing::debug!("Resizing: {}", target.id);
                 original
                     .resize(target.w, target.h, FilterType::Gaussian)
                     .write_to(&mut byte, target.ext)?;
-                tracing::debug!("Resized!: {}", target.name);
+                tracing::debug!("Resized!: {}", target.id);
                 ImageResult::Ok((target, byte.into_inner()))
             })
             .collect::<Result<Vec<_>, _>>()
