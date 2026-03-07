@@ -1,13 +1,43 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
+use clap::Parser;
+use config::Config as ConfigLoad;
 use serde::Deserialize;
 
 use crate::services::property::ProcessorConfig;
 
+#[derive(clap::Parser)]
+pub struct Args {
+    #[clap(short, long)]
+    configs: Option<Vec<String>>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    pub dir: PathBuf,
+    pub listen: String,
+    pub cors_origin: Vec<String>,
     pub processors: ProcessorConfig,
 }
 
 pub fn parse_config() -> anyhow::Result<Config> {
-    let file = std::fs::read_to_string("./iris.toml")?;
-    Ok(toml::from_str(&file)?)
+    let args = Args::parse();
+
+    let mut builder = ConfigLoad::builder();
+
+    if let Some(configs) = args.configs {
+        for config in configs {
+            builder = builder.add_source(config::File::with_name(&config));
+        }
+    } else {
+        builder = builder.add_source(config::File::with_name("iris.toml"))
+    }
+
+    builder
+        .add_source(config::Environment::with_prefix("IRIS_CONFIG"))
+        .build()
+        .context("The config could not be read")?
+        .try_deserialize()
+        .context("The config was found, but could not parse as the TOML, or the valid config object")
 }

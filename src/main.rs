@@ -1,8 +1,6 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{process::ExitCode, sync::Arc};
 
+use anyhow::Context as _;
 use axum::{http::StatusCode, routing::get};
 use tokio::{net::TcpListener, sync::RwLock};
 use tower_http::cors::CorsLayer;
@@ -32,19 +30,41 @@ pub struct Context {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .json()
         .init();
 
-    let config = parse_config().unwrap();
+    match run().await {
+        Ok(_) => {
+            eprintln!("Iris is exiting");
+            0.into()
+        },
+        Err(e) => {
+            eprintln!("The Iris experienced fatal issue and cannot continue:");
+            eprintln!("{e}");
+            tracing::error!("The Iris is exiting: {e}");
+
+            for cause in e.chain().skip(1) {
+                eprintln!("  <- {cause}");
+                tracing::error!("<- {cause}");
+            }
+
+            1.into()
+        },
+    }
+}
+
+async fn run() -> Result<(), anyhow::Error> {
+    let config = parse_config()?;
 
     let ctx = Arc::new(Context {
         app_context: AppContext {
-            dir: PathBuf::from("./_ignored/"),
+            dir: config.dir.clone(),
         },
-        registry: RwLock::new(PhotoStorageRegistry::new(Path::new("./_ignored/"))),
-        service: build_service_context(&config).unwrap(),
+        registry: RwLock::new(PhotoStorageRegistry::new(&config.dir)),
+        service: build_service_context(&config)?,
     });
 
     let (router, openapi) = OpenApiRouter::new()
@@ -60,9 +80,18 @@ async fn main() {
             }),
         )
         .merge(Redoc::with_url("/docs", openapi))
-        .layer(CorsLayer::permissive().allow_origin(["http://localhost:5173".parse().unwrap()]));
+        .layer(CorsLayer::permissive().allow_origin(
+            config
+                .cors_origin
+                .iter()
+                .map(|origin| origin.parse().with_context(|| format!("The CORS origin is not valid: {}", origin)))
+                .collect::<Result<Vec<_>, _>>()?
+        ));
 
-    axum::serve(TcpListener::bind("localhost:8080").await.unwrap(), router)
-        .await
-        .unwrap();
+    tracing::info!("Iris will be serving at http://{}", &config.listen);
+
+    axum::serve(TcpListener::bind(&config.listen).await?, router)
+        .await?;
+
+    Ok(())
 }

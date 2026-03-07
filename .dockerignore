@@ -1,0 +1,10 @@
+.claude
+.git
+.serena
+node_modules
+target
+package.json
+pnpm-lock.yaml
+iris.toml
+Dockerfile
+.dockerignore
