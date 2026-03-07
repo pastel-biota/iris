@@ -764,6 +764,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "iris"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "futures-util",
+ "image",
+ "kamadak-exif",
+ "rayon",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "ulid",
+ "utoipa",
+ "utoipa-axum",
+ "utoipa-redoc",
+]
+
+[[package]]
 name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -882,32 +908,6 @@ checksum = "8ea1f30cedd69f0a2954655f7188c6a834246d2bcf1e315e2ac40c4b24dc9519"
 dependencies = [
  "cfg-if",
  "rayon",
-]
-
-[[package]]
-name = "membrane"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "chrono",
- "futures-util",
- "image",
- "kamadak-exif",
- "rayon",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-util",
- "toml",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "ulid",
- "utoipa",
- "utoipa-axum",
- "utoipa-redoc",
 ]
 
 [[package]]

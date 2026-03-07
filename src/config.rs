@@ -8,6 +8,6 @@ pub struct Config {
 }
 
 pub fn parse_config() -> anyhow::Result<Config> {
-    let file = std::fs::read_to_string("./membrane.toml")?;
+    let file = std::fs::read_to_string("./iris.toml")?;
     Ok(toml::from_str(&file)?)
 }
