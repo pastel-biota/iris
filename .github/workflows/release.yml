@@ -26,6 +26,8 @@ jobs:
         with:
           context: .
           push: true
+          cache-from: type=registry,ref=ghcr.io/flisan/iris:buildcache
+          cache-to: type=registry,ref=ghcr.io/flisan/iris:buildcache,mode=max
           tags: |
             ghcr.io/pastel-biota/iris:${{ github.ref_name }}
             ghcr.io/pastel-biota/iris:latest
