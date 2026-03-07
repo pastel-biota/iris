@@ -72,6 +72,7 @@ pub struct ImageMeta {
     pub height: u32,
     pub image_id: String,
     pub extension: String,
+    pub mime: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,14 +108,15 @@ impl Rational {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Orientation {
     pub rotation: Rotation,
     pub flip: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rotation {
+    #[default]
     Upright,
     UpsideDown,
     CounterClockwise,

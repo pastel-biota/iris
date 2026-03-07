@@ -79,7 +79,6 @@ pub async fn get_image(
             .into_response();
     };
 
-    let image_meta = image_meta.clone();
     let photo_stream = match registry.load_image(&photo_id, &image_meta).await {
         Ok(photo) => photo,
         Err(err) => {
@@ -97,7 +96,7 @@ pub async fn get_image(
     (
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE, "image/jpeg"),
+            (header::CONTENT_TYPE, image_meta.mime.as_str()),
             (header::CACHE_CONTROL, "public, max-age=2592000, immutable")
         ],
         photo_stream,

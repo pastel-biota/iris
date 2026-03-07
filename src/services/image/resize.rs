@@ -27,7 +27,8 @@ pub struct Resized {
     pub smallest_image: DynamicImage,
 }
 
-pub async fn resize_images(original: Arc<DynamicImage>) -> anyhow::Result<Resized> {
+pub async fn resize_images(original: DynamicImage) -> anyhow::Result<Resized> {
+    let original = Arc::new(original);
     let resized = tokio::task::spawn_blocking(move || {
         RESIZE_TARGETS
             .par_iter()

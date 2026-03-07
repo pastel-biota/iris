@@ -71,7 +71,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
     let photo_id = Identifier::new(&processed_image.shot_time, &ulid::Ulid::new().to_string());
 
     tracing::info!("Starting resize");
-    let processed = process_image_content(&bytes).await.unwrap();
+    let processed = process_image_content(&properties, &bytes).await.unwrap();
     let resized = processed
         .resized
         .into_iter()
@@ -80,6 +80,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
                 width: resized.target.w,
                 height: resized.target.h,
                 extension: resized.target.ext.extensions_str()[0].to_string(),
+                mime: resized.target.ext.to_mime_type().to_string(),
                 image_id: resized.target.id.to_string(),
             }, resized.data)
         })

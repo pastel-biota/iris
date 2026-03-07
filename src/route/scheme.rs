@@ -21,6 +21,8 @@ pub struct PhotoScheme {
     /// The image ID is used to upload the actual image later.
     images: Vec<PhotoImages>,
 
+    shot_datetime: String,
+
     #[schema(example = "#123456")]
     representative_color: String,
 
@@ -34,6 +36,7 @@ impl From<PhotoMeta> for PhotoScheme {
             original_sha256: value.original_sha256,
             images: value.images.into_iter().map(Into::into).collect(),
             properties: value.properties.into(),
+            shot_datetime: value.shot_time.to_rfc3339(),
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
@@ -50,6 +53,9 @@ pub struct PhotoImages {
     #[schema(example = "jpg")]
     ext: String,
 
+    #[schema(example = "image/jpeg")]
+    mime: String,
+
     #[schema(example = 1920)]
     width: u32,
 
@@ -64,6 +70,7 @@ impl From<ImageMeta> for PhotoImages {
             height: value.height,
             image_id: value.image_id,
             ext: value.extension,
+            mime: value.mime,
         }
     }
 }
@@ -147,16 +154,20 @@ impl From<PhotoReference> for PhotoReferenceSchema {
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ImageReferenceSchema {
     id: String,
+    width: u32,
     height: u32,
     ext: String,
+    mime: String,
 }
 
 impl From<ImageReference> for ImageReferenceSchema {
     fn from(value: ImageReference) -> Self {
         ImageReferenceSchema {
             id: value.id,
+            width: value.width,
             height: value.height,
             ext: value.ext,
+            mime: value.mime,
         }
     }
 }

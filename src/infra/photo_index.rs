@@ -90,16 +90,20 @@ impl From<PhotoMeta> for PhotoReference {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize, Debug)]
 pub struct ImageReference {
     pub id: String,
+    pub width: u32,
     pub height: u32,
     pub ext: String,
+    pub mime: String,
 }
 
 impl From<ImageMeta> for ImageReference {
     fn from(value: ImageMeta) -> Self {
         Self {
             id: value.image_id,
+            width: value.width,
             height: value.height,
             ext: value.extension,
+            mime: value.mime,
         }
     }
 }
