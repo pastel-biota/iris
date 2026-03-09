@@ -17,8 +17,20 @@ pub struct OriginalSha256Index {
     content: Option<IndexEntry>,
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "_v", rename_all = "lowercase")]
+pub enum IndexEntry {
+    V1(IndexEntryV1)
+}
+
+impl Default for IndexEntry {
+    fn default() -> Self {
+        IndexEntry::V1(Default::default())
+    }
+}
+
 #[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
-pub struct IndexEntry {
+pub struct IndexEntryV1 {
     total_count: u32,
     pics: HashMap<String, PhotoReference>,
 }
@@ -28,7 +40,7 @@ impl PhotoIndexProvider for OriginalSha256Index {
     type Entry = IndexEntry;
 
     fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
-        let index = self.load_mut()?;
+        let IndexEntry::V1(index) = self.load_mut()?;
 
         index
             .pics
@@ -41,7 +53,8 @@ impl PhotoIndexProvider for OriginalSha256Index {
     }
 
     fn total_count(&mut self) -> anyhow::Result<u32> {
-        self.load_mut().map(|index| index.total_count)
+        let IndexEntry::V1(index) = self.load_mut()?;
+        Ok(index.total_count)
     }
 }
 
@@ -54,7 +67,7 @@ impl OriginalSha256Index {
     }
 
     pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {
-        let index = self.load_mut()?;
+        let IndexEntry::V1(index) = self.load_mut()?;
         Ok(index.pics.contains_key(hash))
     }
 
@@ -62,7 +75,7 @@ impl OriginalSha256Index {
         &'s mut self,
         hashes: &'h [String],
     ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
-        let index = self.load_mut()?;
+        let IndexEntry::V1(index) = self.load_mut()?;
 
         Ok(hashes
             .iter()

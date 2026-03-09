@@ -29,6 +29,7 @@ impl PhotoStorageDirectory {
 
         let file_content = std::fs::read(paths.meta())
             .with_context(|| format!("Could not read the metafile for {id}"))?;
+
         let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
             .with_context(|| format!("The metafile for {id} exists, but is malformed"))?;
 
@@ -93,11 +94,27 @@ impl PhotoStorageDirectory {
         image_data: impl AsyncRead,
     ) -> anyhow::Result<()> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
-
         let path = paths.for_image(&image.image_id, &image.extension);
 
+        self.write_image(&path, image_data).await
+    }
+
+    pub async fn upload_original_photo(
+        &mut self,
+        id: &Identifier,
+        extension: &str,
+        image_data: impl AsyncRead,
+    ) -> anyhow::Result<()> {
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
+        let path = paths.for_original_image(extension);
+
+        self.write_image(&path, image_data).await
+    }
+
+    async fn write_image(&self, path: &Path, image_data: impl AsyncRead) -> anyhow::Result<()> {
         let result = {
-            let mut file = File::create(&path)
+            std::fs::create_dir_all(path.parent().unwrap())?;
+            let mut file = File::create(path)
                 .await
                 .context("Failed to open the image file")?;
 
@@ -141,6 +158,12 @@ impl PathsForPhoto {
 
     pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {
         self.base_dir
+            .join(self.id.to_string())
             .join(format!("{}-{}.{}", self.id, img_id, ext))
+    }
+
+    pub fn for_original_image(&self, ext: &str) -> PathBuf {
+        self.base_dir
+            .join(format!("{}.{}", self.id, ext))
     }
 }

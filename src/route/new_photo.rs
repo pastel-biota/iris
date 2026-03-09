@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{os::unix::ffi::OsStrExt, sync::Arc};
 
 use axum::{
     Json,
@@ -10,7 +10,7 @@ use axum::{
 
 use crate::{
     Context,
-    model::{Identifier, ImageMeta, PhotoMeta},
+    model::{Identifier, ImageMeta, OriginalImageMeta, PhotoMeta},
     route::{
         BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
     },
@@ -86,8 +86,17 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         })
         .collect::<Vec<_>>();
 
+    let original_ext = processed.original_meta.ext.to_string();
+    let original = OriginalImageMeta {
+        width: processed.original_meta.w,
+        height: processed.original_meta.h,
+        extension: original_ext.clone(),
+        mime: processed.original_meta.mime.to_string(),
+    };
+
     let photo = PhotoMeta {
         id: photo_id.clone(),
+        original,
         images: resized.iter().map(|(img, _)| img.clone()).collect(),
         original_sha256: processed_image.sha256,
         shot_time: processed_image.shot_time,
@@ -97,6 +106,9 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
 
     let mut registry = ctx.registry.write().await;
     registry.new_photo(&photo).unwrap();
+
+    registry
+        .upload_original_image(&photo.id, &original_ext, &bytes).await.unwrap();
 
     for resized in resized {
         registry

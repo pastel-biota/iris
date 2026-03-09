@@ -17,13 +17,25 @@ pub struct AllImageIndex {
     content: Option<AllImageIndexEntry>,
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "_v", rename_all = "lowercase")]
+enum AllImageIndexEntry {
+    V1(AllImageIndexEntryV1)
+}
+
+impl Default for AllImageIndexEntry {
+    fn default() -> Self {
+        AllImageIndexEntry::V1(Default::default())
+    }
+}
+
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
-struct AllImageIndexEntry {
+struct AllImageIndexEntryV1 {
     total_count: u32,
     pics: HashMap<i32, HashMap<u32, Vec<PhotoReference>>>,
 }
 
-impl AllImageIndexEntry {
+impl AllImageIndexEntryV1 {
     fn registered_months(&self) -> anyhow::Result<Vec<(i32, u32)>> {
         let mut months = self
             .pics
@@ -47,7 +59,7 @@ impl AllImageIndex {
     }
 
     pub fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
-        let index = self.load()?;
+        let AllImageIndexEntry::V1(index) = self.load()?;
 
         let month_pics = index
             .pics
@@ -78,12 +90,12 @@ impl AllImageIndex {
     }
 
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
-        let index = self.load()?;
+        let AllImageIndexEntry::V1(index) = self.load()?;
         Ok(index.total_count)
     }
 
     pub fn list_first_n_images(&mut self, size: usize) -> anyhow::Result<Vec<PhotoReference>> {
-        let index = self.load()?;
+        let AllImageIndexEntry::V1(index) = self.load()?;
 
         let images = index
             .registered_months()?
@@ -98,7 +110,7 @@ impl AllImageIndex {
         ident: &Identifier,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
-        let index = self.load()?;
+        let AllImageIndexEntry::V1(index) = self.load()?;
 
         let photos = index
             .pics

@@ -1,6 +1,6 @@
 use std::{io::Cursor, sync::Arc};
 
-use image::{DynamicImage, ImageFormat, ImageResult, imageops::FilterType};
+use image::{DynamicImage, GenericImageView, ImageFormat, ImageResult, imageops::FilterType};
 use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator};
 
 pub struct ResizeTargets {
@@ -19,6 +19,8 @@ pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
 
 pub struct ResizeResult {
     pub target: &'static ResizeTargets,
+    pub w: u32,
+    pub h: u32,
     pub data: Vec<u8>,
 }
 
@@ -32,21 +34,7 @@ pub async fn resize_images(original: DynamicImage) -> anyhow::Result<Resized> {
     let resized = tokio::task::spawn_blocking(move || {
         RESIZE_TARGETS
             .par_iter()
-            .map(|target| {
-                let mut byte = Cursor::new(Vec::new());
-                tracing::debug!("Resizing: {}", target.id);
-                let image = original
-                    .resize(target.w, target.h, FilterType::Gaussian);
-                image.write_to(&mut byte, target.ext)?;
-                tracing::debug!("Resized!: {}", target.id);
-                ImageResult::Ok((
-                    ResizeResult {
-                        target,
-                        data: byte.into_inner()
-                    },
-                    image,
-                ))
-            })
+            .map(|target| resize_image(target, original.clone()))
             .collect::<Result<Vec<_>, _>>()
     }).await??;
 
@@ -62,5 +50,37 @@ pub async fn resize_images(original: DynamicImage) -> anyhow::Result<Resized> {
         resized: resized,
         smallest_image: images.swap_remove(smallest_idx),
     })
+}
+
+fn resize_image(target: &'static ResizeTargets, original: Arc<DynamicImage>) -> ImageResult<(ResizeResult, DynamicImage)> {
+    let mut byte = Cursor::new(Vec::new());
+    tracing::debug!("Resizing: {}", target.id);
+
+    let (w, h) = determine_dimension(target, original.dimensions());
+
+    let image = original
+        .resize(w, h, FilterType::Gaussian);
+    image.write_to(&mut byte, target.ext)?;
+    tracing::debug!("Resized!: {}", target.id);
+
+    ImageResult::Ok((
+        ResizeResult {
+            target,
+            data: byte.into_inner(),
+            w,
+            h,
+        },
+        image,
+    ))
+}
+
+fn determine_dimension(target: &ResizeTargets, (width, height): (u32, u32)) -> (u32, u32) {
+    let scale = if width >= height {
+        (target.h as f32) / height as f32
+    } else {
+        (target.w as f32) / width as f32
+    };
+
+    ((width as f32 * scale) as u32, (height as f32 * scale) as u32)
 }
 

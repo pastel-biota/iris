@@ -77,6 +77,21 @@ impl PhotoStorageRegistry {
         Ok(())
     }
 
+    pub async fn upload_original_image(
+        &mut self,
+        id: &Identifier,
+        ext: &str,
+        content: &[u8],
+    ) -> anyhow::Result<()> {
+        self
+            .dir
+            .load_photo_meta(id)?
+            .context("The photo does not exist")?;
+        self.dir.upload_original_photo(id, ext, content).await?;
+
+        Ok(())
+    }
+
     pub async fn upload_image(
         &mut self,
         id: &Identifier,
