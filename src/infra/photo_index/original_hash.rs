@@ -8,7 +8,7 @@ use anyhow::Context as _;
 
 use crate::{
     infra::photo_index::{PhotoIndexProvider, PhotoReference},
-    model::PhotoMeta,
+    model::{Identifier, ImageMeta, PhotoMeta},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -39,13 +39,28 @@ impl PhotoIndexProvider for OriginalSha256Index {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
 
-    fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
+    fn add_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         index
             .pics
             .insert(photo.original_sha256.clone(), photo.clone().into());
         index.total_count += 1;
+
+        self.save()?;
+
+        Ok(())
+    }
+
+    fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+        let IndexEntry::V1(index) = self.load_mut()?;
+
+        let photo = index
+            .pics
+            .values_mut()
+            .find(|photo| &photo.id == photo_id)
+            .context("The image was not found")?;
+        photo.images.insert(image_id.to_string(), image.clone().into());
 
         self.save()?;
 

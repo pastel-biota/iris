@@ -1,19 +1,28 @@
 use std::{collections::HashMap, path::Path};
 
-use anyhow::{Context, bail};
+use anyhow::Context;
+use chrono::{DateTime, FixedOffset};
 
 use crate::{
     infra::{
         io::PhotoStorageDirectory,
         photo_index::{PhotoIndex, PhotoReference},
     },
-    model::{Identifier, ImageMeta, PhotoMeta},
+    model::{Identifier, ImageMeta, PhotoMeta, Properties},
 };
 
 pub struct PhotoStorageRegistry {
     dir: PhotoStorageDirectory,
     index: PhotoIndex,
-    loaded_photos: HashMap<Identifier, PhotoMeta>,
+}
+
+pub struct NewPhotoParam {
+    pub id: Identifier,
+    pub original: ImageMeta,
+    pub original_sha256: String,
+    pub properties: Properties,
+    pub shot_time: DateTime<FixedOffset>,
+    pub representative_rgb: [u8; 3],
 }
 
 impl PhotoStorageRegistry {
@@ -21,7 +30,6 @@ impl PhotoStorageRegistry {
         PhotoStorageRegistry {
             dir: PhotoStorageDirectory::new(base_dir),
             index: PhotoIndex::new(base_dir),
-            loaded_photos: HashMap::new(),
         }
     }
 
@@ -49,32 +57,47 @@ impl PhotoStorageRegistry {
     }
 
     pub fn load_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        if let Some(photo) = self.loaded_photos.get(id) {
-            return Ok(Some(photo.clone()));
-        }
-
         let Some(photo) = self.dir.load_photo_meta(id)? else {
             return Ok(None);
         };
-
-        self.loaded_photos.insert(id.clone(), photo.clone());
 
         Ok(Some(photo))
     }
 
     pub async fn load_image(
         &mut self,
-        id: &Identifier,
+        photo_id: &Identifier,
+        image_id: &str,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {
-        self.dir.load_image(id, image).await
+        self.dir.load_image(photo_id, image_id, image).await
     }
 
-    pub fn new_photo(&mut self, meta: &PhotoMeta) -> anyhow::Result<()> {
-        self.dir.create_new_photo_meta(meta.clone())?;
-        self.index.add_new_image(meta)?;
+    pub async fn load_original_image(
+        &mut self,
+        photo_id: &Identifier,
+    ) -> anyhow::Result<Vec<u8>> {
+        let photo = self
+            .load_photo(photo_id)?
+            .context("The photo does not exist")?;
+        self.dir.load_original_image(photo_id, &photo.original).await
+    }
 
-        Ok(())
+    pub fn new_photo(&mut self, meta: NewPhotoParam) -> anyhow::Result<PhotoMeta> {
+        let meta = PhotoMeta {
+            id: meta.id,
+            original: meta.original,
+            images: HashMap::new(),
+            original_sha256: meta.original_sha256,
+            properties: meta.properties,
+            shot_time: meta.shot_time,
+            representative_rgb: meta.representative_rgb,
+        };
+
+        self.dir.create_new_photo_meta(meta.clone())?;
+        self.index.add_new_photo(&meta)?;
+
+        Ok(meta)
     }
 
     pub async fn upload_original_image(
@@ -84,42 +107,28 @@ impl PhotoStorageRegistry {
         content: &[u8],
     ) -> anyhow::Result<()> {
         self
-            .dir
-            .load_photo_meta(id)?
+            .load_photo(id)?
             .context("The photo does not exist")?;
-        self.dir.upload_original_photo(id, ext, content).await?;
+        self.dir.upload_original_image(id, ext, content).await?;
 
         Ok(())
     }
 
     pub async fn upload_image(
         &mut self,
-        id: &Identifier,
+        photo_id: &Identifier,
         image_id: &str,
-        ext: &str,
+        image: &ImageMeta,
         content: &[u8],
-    ) -> anyhow::Result<ImageMeta> {
-        let photo = self
-            .dir
-            .load_photo_meta(id)?
+    ) -> anyhow::Result<PhotoMeta> {
+        let mut photo = self
+            .load_photo(photo_id)?
             .context("The photo does not exist")?;
+        let meta = self.dir.upload_image(photo_id, image_id, image, content).await?;
 
-        let image = photo
-            .images
-            .iter()
-            .find(|image| image.image_id == image_id)
-            .context("The photo was found, but there is not image defined with that id")?;
+        photo.images.insert(image_id.to_string(), image.clone());
+        self.index.add_new_image(photo_id, image_id, image)?;
 
-        if image.extension != ext {
-            bail!(
-                "The photo and image was found, but the extension is not right ({} != {})",
-                image.extension,
-                ext
-            );
-        }
-
-        self.dir.upload_photo(id, image, content).await?;
-
-        Ok(image.clone())
+        Ok(meta)
     }
 }

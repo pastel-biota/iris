@@ -24,11 +24,18 @@ impl PhotoIndex {
         }
     }
 
-    pub fn add_new_image(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
+    pub fn add_new_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
         self.all_index.add(photo)?;
-        self.hash_index.add(photo)?;
+        self.hash_index.add_photo(photo)?;
 
         assert!(self.all_index.total_count()? == self.hash_index.total_count()?);
+
+        Ok(())
+    }
+
+    pub fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+        self.all_index.add_new_image(photo_id, image_id, image)?;
+        self.hash_index.add_new_image(photo_id, image_id, image)?;
 
         Ok(())
     }
@@ -68,7 +75,7 @@ pub struct PhotoReference {
     pub year: i32,
     pub month: u32,
     pub hash: String,
-    pub images: Vec<ImageReference>,
+    pub images: HashMap<String, ImageMeta>,
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
 }
@@ -80,30 +87,9 @@ impl From<PhotoMeta> for PhotoReference {
             month: value.id.month,
             id: value.id,
             hash: value.original_sha256,
-            images: value.images.into_iter().map(Into::into).collect(),
+            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
             shot_time: value.shot_time,
             representative_rgb: value.representative_rgb,
-        }
-    }
-}
-
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, Debug)]
-pub struct ImageReference {
-    pub id: String,
-    pub width: u32,
-    pub height: u32,
-    pub ext: String,
-    pub mime: String,
-}
-
-impl From<ImageMeta> for ImageReference {
-    fn from(value: ImageMeta) -> Self {
-        Self {
-            id: value.image_id,
-            width: value.width,
-            height: value.height,
-            ext: value.extension,
-            mime: value.mime,
         }
     }
 }
@@ -112,7 +98,8 @@ pub trait PhotoIndexProvider {
     const INDEX_NAME: &'static str;
     type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;
 
-    fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()>;
+    fn add_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()>;
+    fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()>;
     fn total_count(&mut self) -> anyhow::Result<u32>;
 
     fn load_to_file(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {

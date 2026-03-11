@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
 use chrono::{DateTime, Datelike, FixedOffset};
 use serde::{Deserialize, Serialize};
@@ -59,8 +59,8 @@ impl FromStr for Identifier {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhotoMeta {
     pub id: Identifier,
-    pub original: OriginalImageMeta,
-    pub images: Vec<ImageMeta>,
+    pub original: ImageMeta,
+    pub images: HashMap<String, ImageMeta>,
     pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
@@ -79,7 +79,6 @@ pub struct OriginalImageMeta {
 pub struct ImageMeta {
     pub width: u32,
     pub height: u32,
-    pub image_id: String,
     pub extension: String,
     pub mime: String,
 }

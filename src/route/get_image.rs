@@ -69,7 +69,7 @@ pub async fn get_image(
             .into_response();
     };
 
-    let Some(image_meta) = photo.images.iter().find(|image| image.image_id == image_id) else {
+    let Some(image_meta) = photo.images.get(&image_id) else {
         return (
             StatusCode::NOT_FOUND,
             Json(client_error(
@@ -79,7 +79,7 @@ pub async fn get_image(
             .into_response();
     };
 
-    let photo_stream = match registry.load_image(&photo_id, &image_meta).await {
+    let photo_stream = match registry.load_image(&photo_id, &image_id, &image_meta).await {
         Ok(photo) => photo,
         Err(err) => {
             return (

@@ -3,6 +3,8 @@ use std::{io::Cursor, sync::Arc};
 use image::{DynamicImage, GenericImageView, ImageFormat, ImageResult, imageops::FilterType};
 use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator};
 
+use crate::model::ImageMeta;
+
 pub struct ResizeTargets {
     pub w: u32,
     pub h: u32,
@@ -16,43 +18,32 @@ pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
     ResizeTargets { w: 1920, h: 1080, id: "main", ext: ImageFormat::WebP },
     ResizeTargets { w: 2560, h: 1440, id: "highres", ext: ImageFormat::Png },
 ];
+pub const TINIEST_RESIZE_TARGET: &'static ResizeTargets = &RESIZE_TARGETS[0];
 
 pub struct ResizeResult {
     pub target: &'static ResizeTargets,
-    pub w: u32,
-    pub h: u32,
+    pub meta: ImageMeta,
+    pub image: DynamicImage,
     pub data: Vec<u8>,
 }
 
 pub struct Resized {
     pub resized: Vec<ResizeResult>,
-    pub smallest_image: DynamicImage,
 }
 
-pub async fn resize_images(original: DynamicImage) -> anyhow::Result<Resized> {
+pub async fn resize_images(original: DynamicImage, target: Vec<&'static ResizeTargets>) -> anyhow::Result<Resized> {
     let original = Arc::new(original);
     let resized = tokio::task::spawn_blocking(move || {
-        RESIZE_TARGETS
+        target
             .par_iter()
             .map(|target| resize_image(target, original.clone()))
             .collect::<Result<Vec<_>, _>>()
     }).await??;
 
-    let (resized, mut images): (Vec<ResizeResult>, Vec<DynamicImage>) = resized.into_iter().unzip();
-
-    let smallest_idx = resized.iter()
-        .enumerate()
-        .min_by_key(|(_, content)| content.data.len())
-        .expect("no resize was done")
-        .0;
-
-    Ok(Resized {
-        resized: resized,
-        smallest_image: images.swap_remove(smallest_idx),
-    })
+    Ok(Resized { resized })
 }
 
-fn resize_image(target: &'static ResizeTargets, original: Arc<DynamicImage>) -> ImageResult<(ResizeResult, DynamicImage)> {
+fn resize_image(target: &'static ResizeTargets, original: Arc<DynamicImage>) -> ImageResult<ResizeResult> {
     let mut byte = Cursor::new(Vec::new());
     tracing::debug!("Resizing: {}", target.id);
 
@@ -63,23 +54,26 @@ fn resize_image(target: &'static ResizeTargets, original: Arc<DynamicImage>) -> 
     image.write_to(&mut byte, target.ext)?;
     tracing::debug!("Resized!: {}", target.id);
 
-    ImageResult::Ok((
+    ImageResult::Ok(
         ResizeResult {
-            target,
             data: byte.into_inner(),
-            w,
-            h,
+            meta: ImageMeta {
+                width: image.width(),
+                height: image.height(),
+                extension: target.ext.extensions_str()[0].to_string(),
+                mime: target.ext.to_mime_type().to_string(),
+            },
+            target,
+            image,
         },
-        image,
-    ))
+    )
 }
 
 fn determine_dimension(target: &ResizeTargets, (width, height): (u32, u32)) -> (u32, u32) {
-    let scale = if width >= height {
-        (target.h as f32) / height as f32
-    } else {
-        (target.w as f32) / width as f32
-    };
+    let scale = f32::max(
+        (target.h as f32) / height as f32,
+        (target.w as f32) / width as f32,
+    );
 
     ((width as f32 * scale) as u32, (height as f32 * scale) as u32)
 }

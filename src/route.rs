@@ -3,6 +3,7 @@ pub mod get_images_list;
 pub mod get_photo_meta;
 pub mod get_photos_list_by_hashes_list;
 pub mod new_photo;
+pub mod reprocess;
 pub mod scheme;
 
 use std::{ops::Deref, sync::Arc};
@@ -21,6 +22,7 @@ pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
         .routes(routes!(
             get_photos_list_by_hashes_list::get_photos_list_by_hashes_list
         ))
+        .routes(routes!(reprocess::reprocess))
         .with_state(ctx)
 }
 

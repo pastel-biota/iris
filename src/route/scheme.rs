@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::{
-    infra::photo_index::{ImageReference, PhotoReference},
+    infra::photo_index::PhotoReference,
     model::{ImageMeta, PhotoMeta, Properties},
 };
 
@@ -19,7 +21,7 @@ pub struct PhotoScheme {
 
     /// The list of identifiers assigned to the specified images.
     /// The image ID is used to upload the actual image later.
-    images: Vec<PhotoImages>,
+    images: HashMap<String, ImageMetaScheme>,
 
     shot_datetime: String,
 
@@ -34,7 +36,7 @@ impl From<PhotoMeta> for PhotoScheme {
         Self {
             id: value.id.to_string(),
             original_sha256: value.original_sha256,
-            images: value.images.into_iter().map(Into::into).collect(),
+            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
             properties: value.properties.into(),
             shot_datetime: value.shot_time.to_rfc3339(),
             representative_color: {
@@ -46,10 +48,7 @@ impl From<PhotoMeta> for PhotoScheme {
 }
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct PhotoImages {
-    #[schema(example = "1080p")]
-    image_id: String,
-
+pub struct ImageMetaScheme {
     #[schema(example = "jpg")]
     ext: String,
 
@@ -63,12 +62,11 @@ pub struct PhotoImages {
     height: u32,
 }
 
-impl From<ImageMeta> for PhotoImages {
+impl From<ImageMeta> for ImageMetaScheme {
     fn from(value: ImageMeta) -> Self {
         Self {
             width: value.width,
             height: value.height,
-            image_id: value.image_id,
             ext: value.extension,
             mime: value.mime,
         }
@@ -129,7 +127,7 @@ pub struct PhotoReferenceSchema {
     year: i32,
     month: u32,
     original_sha256: String,
-    images: Vec<ImageReferenceSchema>,
+    images: HashMap<String, ImageMetaScheme>,
     shot_time: String,
     representative_color: String,
 }
@@ -142,7 +140,7 @@ impl From<PhotoReference> for PhotoReferenceSchema {
             id: value.id.to_string(),
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
-            images: value.images.into_iter().map(Into::into).collect(),
+            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
@@ -151,23 +149,3 @@ impl From<PhotoReference> for PhotoReferenceSchema {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct ImageReferenceSchema {
-    id: String,
-    width: u32,
-    height: u32,
-    ext: String,
-    mime: String,
-}
-
-impl From<ImageReference> for ImageReferenceSchema {
-    fn from(value: ImageReference) -> Self {
-        ImageReferenceSchema {
-            id: value.id,
-            width: value.width,
-            height: value.height,
-            ext: value.ext,
-            mime: value.mime,
-        }
-    }
-}

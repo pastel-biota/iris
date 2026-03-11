@@ -1,4 +1,4 @@
-use std::{os::unix::ffi::OsStrExt, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     Json,
@@ -9,12 +9,9 @@ use axum::{
 };
 
 use crate::{
-    Context,
-    model::{Identifier, ImageMeta, OriginalImageMeta, PhotoMeta},
-    route::{
+    Context, infra::registry::NewPhotoParam, model::Identifier, route::{
         BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
-    },
-    services::{image::process_image_content, process::process_image, property::process_properties},
+    }, services::{process::{get_hash, process_image}, property::process_properties, resize::{RESIZE_TARGETS, resize_images}}
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -52,67 +49,58 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
 
     tracing::info!("Beginning registeration");
 
-    let processed_image = process_image(&bytes).await.unwrap();
+    let sha256 = get_hash(&bytes);
 
     {
         let mut registry = ctx.registry.write().await;
 
-        if registry
-            .image_exists_with_hash(&processed_image.sha256)
-            .unwrap()
-        {
+        if registry.image_exists_with_hash(&sha256).unwrap() {
             return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
         }
     }
 
-    let properties =
-        process_properties(&ctx.service.proceessor, processed_image.image_property).unwrap();
+    let processed = process_image(&bytes).await.unwrap();
+    let properties = process_properties(&ctx.service.proceessor, processed.image_property).unwrap();
 
-    let photo_id = Identifier::new(&processed_image.shot_time, &ulid::Ulid::new().to_string());
+    let photo_id = Identifier::new(&processed.shot_time, &ulid::Ulid::new().to_string());
 
-    tracing::info!("Starting resize");
-    let processed = process_image_content(&properties, &bytes).await.unwrap();
-    let resized = processed
-        .resized
-        .into_iter()
-        .map(|resized| {
-            (ImageMeta {
-                width: resized.target.w,
-                height: resized.target.h,
-                extension: resized.target.ext.extensions_str()[0].to_string(),
-                mime: resized.target.ext.to_mime_type().to_string(),
-                image_id: resized.target.id.to_string(),
-            }, resized.data)
-        })
-        .collect::<Vec<_>>();
+    let original_ext = processed.original_meta.extension.clone();
 
-    let original_ext = processed.original_meta.ext.to_string();
-    let original = OriginalImageMeta {
-        width: processed.original_meta.w,
-        height: processed.original_meta.h,
-        extension: original_ext.clone(),
-        mime: processed.original_meta.mime.to_string(),
-    };
-
-    let photo = PhotoMeta {
+    let new_photo = NewPhotoParam {
         id: photo_id.clone(),
-        original,
-        images: resized.iter().map(|(img, _)| img.clone()).collect(),
-        original_sha256: processed_image.sha256,
-        shot_time: processed_image.shot_time,
+        original: processed.original_meta,
+        original_sha256: sha256,
+        shot_time: processed.shot_time,
         representative_rgb: processed.averaged_color.0,
         properties,
     };
 
-    let mut registry = ctx.registry.write().await;
-    registry.new_photo(&photo).unwrap();
-
-    registry
-        .upload_original_image(&photo.id, &original_ext, &bytes).await.unwrap();
-
-    for resized in resized {
+    let new_photo = {
+        let mut registry = ctx.registry.write().await;
+        let new_photo = registry.new_photo(new_photo).unwrap();
         registry
-            .upload_image(&photo.id, &resized.0.image_id, &resized.0.extension, &resized.1)
+            .upload_original_image(&photo_id, &original_ext, &bytes).await.unwrap();
+        registry
+            .upload_image(
+                &photo_id,
+                processed.instant_image.target.id,
+                &processed.instant_image.meta,
+                &processed.instant_image.data,
+            ).await.unwrap();
+
+        new_photo
+    };
+
+    tracing::info!("Starting resize");
+
+    let resized = resize_images(processed.original_image, RESIZE_TARGETS[0..2].iter().collect()).await.unwrap();
+
+    let mut registry = ctx.registry.write().await;
+
+    let mut photo = new_photo;
+    for resized in resized.resized {
+        photo = registry
+            .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
             .await
             .unwrap();
     }

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
 use anyhow::Context;
 use tokio::{
@@ -39,11 +39,32 @@ impl PhotoStorageDirectory {
     pub async fn load_image(
         &mut self,
         photo_id: &Identifier,
+        image_id: &str,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut image_file = File::open(paths.for_image(&image.image_id, &image.extension))
+        let mut image_file = File::open(paths.for_image(image_id, &image.extension))
+            .await
+            .context("Failed to open image file")?;
+
+        let mut vec = Vec::new();
+        image_file
+            .read_to_end(&mut vec)
+            .await
+            .context("Failed to read image file")?;
+
+        Ok(vec)
+    }
+
+    pub async fn load_original_image(
+        &mut self,
+        photo_id: &Identifier,
+        image: &ImageMeta,
+    ) -> anyhow::Result<Vec<u8>> {
+        let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
+
+        let mut image_file = File::open(paths.for_original_image(&image.extension))
             .await
             .context("Failed to open image file")?;
 
@@ -87,19 +108,33 @@ impl PhotoStorageDirectory {
         Ok(())
     }
 
-    pub async fn upload_photo(
+    pub async fn upload_image(
         &mut self,
-        id: &Identifier,
+        photo_id: &Identifier,
+        image_id: &str,
         image: &ImageMeta,
         image_data: impl AsyncRead,
-    ) -> anyhow::Result<()> {
-        let paths = PathsForPhoto::from_id(&self.base_dir, id);
-        let path = paths.for_image(&image.image_id, &image.extension);
+    ) -> anyhow::Result<PhotoMeta> {
+        let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        self.write_image(&path, image_data).await
+        let mut meta = self.load_photo_meta(photo_id)?
+            .context("The photo was not found")?;
+
+        let path = paths.for_image(&image_id, &image.extension);
+        self.write_image(&path, image_data).await?;
+
+        meta.images.insert(image_id.to_string(), image.clone());
+
+        let meta_json = serde_json::to_vec_pretty(&meta)
+            .context("Could not create the JSON represent for the metafile")?;
+
+        std::fs::write(paths.meta(), meta_json)
+            .context("Could not write the metaafile for new photo")?;
+
+        Ok(meta)
     }
 
-    pub async fn upload_original_photo(
+    pub async fn upload_original_image(
         &mut self,
         id: &Identifier,
         extension: &str,

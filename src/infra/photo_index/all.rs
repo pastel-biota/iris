@@ -4,11 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Context as _;
+use anyhow::{Context as _, bail};
 
 use crate::{
     infra::photo_index::PhotoReference,
-    model::{Identifier, PhotoMeta},
+    model::{Identifier, ImageMeta, PhotoMeta},
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -32,7 +32,7 @@ impl Default for AllImageIndexEntry {
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 struct AllImageIndexEntryV1 {
     total_count: u32,
-    pics: HashMap<i32, HashMap<u32, Vec<PhotoReference>>>,
+    pics: HashMap<String, HashMap<String, Vec<PhotoReference>>>,
 }
 
 impl AllImageIndexEntryV1 {
@@ -40,7 +40,7 @@ impl AllImageIndexEntryV1 {
         let mut months = self
             .pics
             .iter()
-            .flat_map(|(year, months)| months.keys().map(|month| (*year, *month)))
+            .flat_map(|(year, months)| months.keys().map(|month| (year.parse::<i32>().unwrap(), month.parse::<u32>().unwrap())))
             .collect::<Vec<_>>();
 
         months.sort();
@@ -63,9 +63,9 @@ impl AllImageIndex {
 
         let month_pics = index
             .pics
-            .entry(photo.id.year)
+            .entry(photo.id.year.to_string())
             .or_insert(HashMap::new())
-            .entry(photo.id.month)
+            .entry(photo.id.month.to_string())
             .or_insert(vec![]);
 
         if month_pics
@@ -89,6 +89,23 @@ impl AllImageIndex {
         Ok(())
     }
 
+    pub fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+        let AllImageIndexEntry::V1(index) = self.load()?;
+
+        let Some(photo) = index.pics.get_mut(&photo_id.year.to_string())
+            .and_then(|year| year.get_mut(&photo_id.month.to_string()))
+            .and_then(|month| month.iter_mut().find(|photo| &photo.id == photo_id))
+        else {
+            bail!("Image was not found")
+        };
+
+        photo.images.insert(image_id.to_string(), image.clone().into());
+
+        self.save()?;
+
+        Ok(())
+    }
+
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
         let AllImageIndexEntry::V1(index) = self.load()?;
         Ok(index.total_count)
@@ -100,7 +117,7 @@ impl AllImageIndex {
         let images = index
             .registered_months()?
             .into_iter()
-            .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
+            .flat_map(|(year, month)| index.pics[&year.to_string()][&month.to_string()].iter().rev());
 
         Ok(images.take(size).cloned().collect())
     }
@@ -114,8 +131,8 @@ impl AllImageIndex {
 
         let photos = index
             .pics
-            .get(&ident.year)
-            .and_then(|year| year.get(&ident.month))
+            .get(&ident.year.to_string())
+            .and_then(|year| year.get(&ident.month.to_string()))
             .with_context(|| {
                 format!("The month {}/{} is not registered", ident.year, ident.month)
             })?;
@@ -130,7 +147,7 @@ impl AllImageIndex {
             .registered_months()?
             .into_iter()
             .skip_while(|month| *month >= (ident.year, ident.month))
-            .flat_map(|(year, month)| index.pics[&year][&month].iter().rev());
+            .flat_map(|(year, month)| index.pics[&year.to_string()][&month.to_string()].iter().rev());
 
         let images = month_image.chain(following_images);
 
