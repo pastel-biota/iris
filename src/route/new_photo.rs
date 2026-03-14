@@ -93,7 +93,7 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
 
     tracing::info!("Starting resize");
 
-    let resized = resize_images(processed.original_image, RESIZE_TARGETS[0..2].iter().collect()).await.unwrap();
+    let resized = resize_images(processed.original_image, RESIZE_TARGETS[1..=3].iter().collect()).await.unwrap();
 
     let mut registry = ctx.registry.write().await;
 
