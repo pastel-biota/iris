@@ -4,7 +4,9 @@ use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
     Context,
-    route::{ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success},
+    ingest::route::{
+        ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success,
+    },
 };
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]

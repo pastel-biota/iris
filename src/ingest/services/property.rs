@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Debug};
 use serde::{Deserialize, de::DeserializeOwned};
 use toml::map::Map;
 
-use crate::model::Properties;
+use crate::ingest::model::Properties;
 
 #[derive(Debug, Deserialize)]
 pub struct ProcessorConfig(HashMap<String, toml::Value>);

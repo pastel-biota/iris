@@ -1,7 +1,7 @@
 use anyhow::Context;
 use image::{DynamicImage, ImageFormat};
 
-use crate::model::ImageMeta;
+use crate::ingest::model::ImageMeta;
 
 pub async fn get_original_image_meta(
     original: &DynamicImage,
@@ -17,4 +17,3 @@ pub async fn get_original_image_meta(
         mime: format.to_mime_type().to_string(),
     })
 }
-

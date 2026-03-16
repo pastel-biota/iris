@@ -11,17 +11,16 @@ use utoipa_redoc::{Redoc, Servable};
 use crate::{
     config::parse_config,
     context::AppContext,
-    infra::registry::PhotoStorageRegistry,
-    route::photo_route,
-    services::{ServiceContext, build_service_context},
+    ingest::{
+        infra::registry::PhotoStorageRegistry,
+        route::photo_route,
+        services::{ServiceContext, build_service_context},
+    },
 };
 
 pub mod config;
 mod context;
-mod infra;
-pub mod model;
-mod route;
-pub mod services;
+pub mod ingest;
 
 pub struct Context {
     pub app_context: AppContext,

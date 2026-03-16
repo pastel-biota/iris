@@ -9,9 +9,19 @@ use axum::{
 };
 
 use crate::{
-    Context, infra::registry::NewPhotoParam, model::Identifier, route::{
-        BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
-    }, services::{process::{get_hash, process_image}, property::process_properties, resize::{RESIZE_TARGETS, resize_images}}
+    Context,
+    ingest::{
+        infra::registry::NewPhotoParam,
+        model::Identifier,
+        route::{
+            BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
+        },
+        services::{
+            process::{get_hash, process_image},
+            property::process_properties,
+            resize::{RESIZE_TARGETS, resize_images},
+        },
+    },
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -79,21 +89,30 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         let mut registry = ctx.registry.write().await;
         let new_photo = registry.new_photo(new_photo).unwrap();
         registry
-            .upload_original_image(&photo_id, &original_ext, &bytes).await.unwrap();
+            .upload_original_image(&photo_id, &original_ext, &bytes)
+            .await
+            .unwrap();
         registry
             .upload_image(
                 &photo_id,
                 processed.instant_image.target.id,
                 &processed.instant_image.meta,
                 &processed.instant_image.data,
-            ).await.unwrap();
+            )
+            .await
+            .unwrap();
 
         new_photo
     };
 
     tracing::info!("Starting resize");
 
-    let resized = resize_images(processed.original_image, RESIZE_TARGETS[1..=3].iter().collect()).await.unwrap();
+    let resized = resize_images(
+        processed.original_image,
+        RESIZE_TARGETS[1..=3].iter().collect(),
+    )
+    .await
+    .unwrap();
 
     let mut registry = ctx.registry.write().await;
 

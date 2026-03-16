@@ -1,10 +1,9 @@
-use crate::{
-    config::Config,
-    services::property::{ProcessorContext, create_property_processor_context},
-};
+use crate::config::Config;
 
-pub mod property;
+use self::property::{ProcessorContext, create_property_processor_context};
+
 pub mod process;
+pub mod property;
 pub mod resize;
 
 pub struct ServiceContext {

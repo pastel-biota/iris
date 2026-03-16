@@ -1,8 +1,8 @@
 mod color;
-mod original;
-mod stand;
 mod exif;
 mod hash;
+mod original;
+mod stand;
 
 use std::io::Cursor;
 
@@ -10,7 +10,10 @@ use anyhow::Context as _;
 use chrono::{DateTime, FixedOffset};
 use image::{DynamicImage, ImageReader, Rgb};
 
-use crate::{model::{ImageMeta, Orientation, Properties}, services::resize::{ResizeResult, TINIEST_RESIZE_TARGET}};
+use crate::ingest::{
+    model::{ImageMeta, Orientation, Properties},
+    services::resize::{ResizeResult, TINIEST_RESIZE_TARGET},
+};
 
 pub struct ProcessedImage {
     pub shot_time: DateTime<FixedOffset>,
@@ -27,9 +30,9 @@ pub fn get_hash(original_bytes: &[u8]) -> String {
 pub async fn process_image(original_bytes: &[u8]) -> anyhow::Result<ProcessedImage> {
     let exif_payloads = exif::read_exif(&original_bytes).await?;
 
-    let reader = ImageReader::new(Cursor::new(original_bytes))
-        .with_guessed_format()?;
-    let format = reader.format()
+    let reader = ImageReader::new(Cursor::new(original_bytes)).with_guessed_format()?;
+    let format = reader
+        .format()
         .context("Could not guess the provided image's format")?;
 
     let original = reader.decode()?;
@@ -42,7 +45,8 @@ pub async fn process_image(original_bytes: &[u8]) -> anyhow::Result<ProcessedIma
 
     let original_meta = original::get_original_image_meta(&original, &format).await?;
     let stood = stand::stand_image(orientation, original);
-    let instant_image = super::resize::resize_images(stood.clone(), vec![TINIEST_RESIZE_TARGET]).await?
+    let instant_image = super::resize::resize_images(stood.clone(), vec![TINIEST_RESIZE_TARGET])
+        .await?
         .resized
         .into_iter()
         .next()
@@ -58,4 +62,3 @@ pub async fn process_image(original_bytes: &[u8]) -> anyhow::Result<ProcessedIma
         instant_image,
     })
 }
-

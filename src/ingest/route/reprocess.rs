@@ -1,9 +1,21 @@
 use std::{io::Cursor, sync::Arc};
 
-use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 use image::ImageReader;
 
-use crate::{Context, model::Identifier, route::{ClientError, SuccessfulResponse, client_error, success}, services::resize::{RESIZE_TARGETS, resize_images}};
+use crate::{
+    Context,
+    ingest::{
+        model::Identifier,
+        route::{ClientError, SuccessfulResponse, client_error, success},
+        services::resize::{RESIZE_TARGETS, resize_images},
+    },
+};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ReprocessResponse;
@@ -65,7 +77,7 @@ pub async fn reprocess(
         .iter()
         .filter(|target| !photo.images.keys().any(|image_id| target.id == image_id))
         .collect::<Vec<&_>>();
-    
+
     if targets.is_empty() {
         return StatusCode::NO_CONTENT.into_response();
     }

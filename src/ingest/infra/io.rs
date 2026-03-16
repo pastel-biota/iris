@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use tokio::{
@@ -7,7 +10,7 @@ use tokio::{
     pin,
 };
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::ingest::model::{Identifier, ImageMeta, PhotoMeta};
 
 pub struct PhotoStorageDirectory {
     base_dir: PathBuf,
@@ -117,7 +120,8 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<PhotoMeta> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut meta = self.load_photo_meta(photo_id)?
+        let mut meta = self
+            .load_photo_meta(photo_id)?
             .context("The photo was not found")?;
 
         let path = paths.for_image(&image_id, &image.extension);
@@ -198,7 +202,6 @@ impl PathsForPhoto {
     }
 
     pub fn for_original_image(&self, ext: &str) -> PathBuf {
-        self.base_dir
-            .join(format!("{}.{}", self.id, ext))
+        self.base_dir.join(format!("{}.{}", self.id, ext))
     }
 }

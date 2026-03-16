@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
+use crate::ingest::{
     infra::photo_index::PhotoReference,
     model::{ImageMeta, PhotoMeta, Properties},
 };
@@ -36,13 +36,17 @@ impl From<PhotoMeta> for PhotoScheme {
         Self {
             id: value.id.to_string(),
             original_sha256: value.original_sha256,
-            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
             properties: value.properties.into(),
             shot_datetime: value.shot_time.to_rfc3339(),
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
-            }
+            },
         }
     }
 }
@@ -140,12 +144,15 @@ impl From<PhotoReference> for PhotoReferenceSchema {
             id: value.id.to_string(),
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
-            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
-            }
+            },
         }
     }
 }
-

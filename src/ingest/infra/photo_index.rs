@@ -6,10 +6,9 @@ use std::{collections::HashMap, fs::File, path::Path};
 use anyhow::Context as _;
 use chrono::{DateTime, FixedOffset};
 
-use crate::{
-    infra::photo_index::{all::AllImageIndex, original_hash::OriginalSha256Index},
-    model::{Identifier, ImageMeta, PhotoMeta},
-};
+use crate::ingest::model::{Identifier, ImageMeta, PhotoMeta};
+
+use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
 
 pub struct PhotoIndex {
     all_index: AllImageIndex,
@@ -33,7 +32,12 @@ impl PhotoIndex {
         Ok(())
     }
 
-    pub fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+    pub fn add_new_image(
+        &mut self,
+        photo_id: &Identifier,
+        image_id: &str,
+        image: &ImageMeta,
+    ) -> anyhow::Result<()> {
         self.all_index.add_new_image(photo_id, image_id, image)?;
         self.hash_index.add_new_image(photo_id, image_id, image)?;
 
@@ -87,7 +91,11 @@ impl From<PhotoMeta> for PhotoReference {
             month: value.id.month,
             id: value.id,
             hash: value.original_sha256,
-            images: value.images.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
             shot_time: value.shot_time,
             representative_rgb: value.representative_rgb,
         }
@@ -99,7 +107,12 @@ pub trait PhotoIndexProvider {
     type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;
 
     fn add_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()>;
-    fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()>;
+    fn add_new_image(
+        &mut self,
+        photo_id: &Identifier,
+        image_id: &str,
+        image: &ImageMeta,
+    ) -> anyhow::Result<()>;
     fn total_count(&mut self) -> anyhow::Result<u32>;
 
     fn load_to_file(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {

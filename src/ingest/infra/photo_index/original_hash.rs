@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 
-use crate::{
+use crate::ingest::{
     infra::photo_index::{PhotoIndexProvider, PhotoReference},
     model::{Identifier, ImageMeta, PhotoMeta},
 };
@@ -20,7 +20,7 @@ pub struct OriginalSha256Index {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "_v", rename_all = "lowercase")]
 pub enum IndexEntry {
-    V1(IndexEntryV1)
+    V1(IndexEntryV1),
 }
 
 impl Default for IndexEntry {
@@ -52,7 +52,12 @@ impl PhotoIndexProvider for OriginalSha256Index {
         Ok(())
     }
 
-    fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+    fn add_new_image(
+        &mut self,
+        photo_id: &Identifier,
+        image_id: &str,
+        image: &ImageMeta,
+    ) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         let photo = index
@@ -60,7 +65,9 @@ impl PhotoIndexProvider for OriginalSha256Index {
             .values_mut()
             .find(|photo| &photo.id == photo_id)
             .context("The image was not found")?;
-        photo.images.insert(image_id.to_string(), image.clone().into());
+        photo
+            .images
+            .insert(image_id.to_string(), image.clone().into());
 
         self.save()?;
 

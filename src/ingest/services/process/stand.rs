@@ -1,6 +1,6 @@
 use image::{DynamicImage, metadata::Orientation as OrientationMetadata};
 
-use crate::model::{Orientation, Rotation};
+use crate::ingest::model::{Orientation, Rotation};
 
 pub fn stand_image(original_orientation: &Orientation, mut image: DynamicImage) -> DynamicImage {
     // image.apply_orientation(/**/) rotates N deg in clockwise
@@ -14,4 +14,3 @@ pub fn stand_image(original_orientation: &Orientation, mut image: DynamicImage) 
     image.apply_orientation(orientation_meta);
     image
 }
-

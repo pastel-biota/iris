@@ -5,7 +5,7 @@ use clap::Parser;
 use config::Config as ConfigLoad;
 use serde::Deserialize;
 
-use crate::services::property::ProcessorConfig;
+use crate::ingest::services::property::ProcessorConfig;
 
 #[derive(clap::Parser)]
 pub struct Args {
@@ -39,5 +39,7 @@ pub fn parse_config() -> anyhow::Result<Config> {
         .build()
         .context("The config could not be read")?
         .try_deserialize()
-        .context("The config was found, but could not parse as the TOML, or the valid config object")
+        .context(
+            "The config was found, but could not parse as the TOML, or the valid config object",
+        )
 }

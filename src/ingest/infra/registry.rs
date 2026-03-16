@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::Path};
 use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
 
-use crate::{
+use crate::ingest::{
     infra::{
         io::PhotoStorageDirectory,
         photo_index::{PhotoIndex, PhotoReference},
@@ -73,14 +73,13 @@ impl PhotoStorageRegistry {
         self.dir.load_image(photo_id, image_id, image).await
     }
 
-    pub async fn load_original_image(
-        &mut self,
-        photo_id: &Identifier,
-    ) -> anyhow::Result<Vec<u8>> {
+    pub async fn load_original_image(&mut self, photo_id: &Identifier) -> anyhow::Result<Vec<u8>> {
         let photo = self
             .load_photo(photo_id)?
             .context("The photo does not exist")?;
-        self.dir.load_original_image(photo_id, &photo.original).await
+        self.dir
+            .load_original_image(photo_id, &photo.original)
+            .await
     }
 
     pub fn new_photo(&mut self, meta: NewPhotoParam) -> anyhow::Result<PhotoMeta> {
@@ -106,9 +105,7 @@ impl PhotoStorageRegistry {
         ext: &str,
         content: &[u8],
     ) -> anyhow::Result<()> {
-        self
-            .load_photo(id)?
-            .context("The photo does not exist")?;
+        self.load_photo(id)?.context("The photo does not exist")?;
         self.dir.upload_original_image(id, ext, content).await?;
 
         Ok(())
@@ -124,7 +121,10 @@ impl PhotoStorageRegistry {
         let mut photo = self
             .load_photo(photo_id)?
             .context("The photo does not exist")?;
-        let meta = self.dir.upload_image(photo_id, image_id, image, content).await?;
+        let meta = self
+            .dir
+            .upload_image(photo_id, image_id, image, content)
+            .await?;
 
         photo.images.insert(image_id.to_string(), image.clone());
         self.index.add_new_image(photo_id, image_id, image)?;

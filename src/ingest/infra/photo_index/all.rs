@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{Context as _, bail};
 
-use crate::{
+use crate::ingest::{
     infra::photo_index::PhotoReference,
     model::{Identifier, ImageMeta, PhotoMeta},
 };
@@ -20,7 +20,7 @@ pub struct AllImageIndex {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "_v", rename_all = "lowercase")]
 enum AllImageIndexEntry {
-    V1(AllImageIndexEntryV1)
+    V1(AllImageIndexEntryV1),
 }
 
 impl Default for AllImageIndexEntry {
@@ -40,7 +40,11 @@ impl AllImageIndexEntryV1 {
         let mut months = self
             .pics
             .iter()
-            .flat_map(|(year, months)| months.keys().map(|month| (year.parse::<i32>().unwrap(), month.parse::<u32>().unwrap())))
+            .flat_map(|(year, months)| {
+                months
+                    .keys()
+                    .map(|month| (year.parse::<i32>().unwrap(), month.parse::<u32>().unwrap()))
+            })
             .collect::<Vec<_>>();
 
         months.sort();
@@ -89,17 +93,26 @@ impl AllImageIndex {
         Ok(())
     }
 
-    pub fn add_new_image(&mut self, photo_id: &Identifier, image_id: &str, image: &ImageMeta) -> anyhow::Result<()> {
+    pub fn add_new_image(
+        &mut self,
+        photo_id: &Identifier,
+        image_id: &str,
+        image: &ImageMeta,
+    ) -> anyhow::Result<()> {
         let AllImageIndexEntry::V1(index) = self.load()?;
 
-        let Some(photo) = index.pics.get_mut(&photo_id.year.to_string())
+        let Some(photo) = index
+            .pics
+            .get_mut(&photo_id.year.to_string())
             .and_then(|year| year.get_mut(&photo_id.month.to_string()))
             .and_then(|month| month.iter_mut().find(|photo| &photo.id == photo_id))
         else {
             bail!("Image was not found")
         };
 
-        photo.images.insert(image_id.to_string(), image.clone().into());
+        photo
+            .images
+            .insert(image_id.to_string(), image.clone().into());
 
         self.save()?;
 
@@ -117,7 +130,11 @@ impl AllImageIndex {
         let images = index
             .registered_months()?
             .into_iter()
-            .flat_map(|(year, month)| index.pics[&year.to_string()][&month.to_string()].iter().rev());
+            .flat_map(|(year, month)| {
+                index.pics[&year.to_string()][&month.to_string()]
+                    .iter()
+                    .rev()
+            });
 
         Ok(images.take(size).cloned().collect())
     }
@@ -147,7 +164,11 @@ impl AllImageIndex {
             .registered_months()?
             .into_iter()
             .skip_while(|month| *month >= (ident.year, ident.month))
-            .flat_map(|(year, month)| index.pics[&year.to_string()][&month.to_string()].iter().rev());
+            .flat_map(|(year, month)| {
+                index.pics[&year.to_string()][&month.to_string()]
+                    .iter()
+                    .rev()
+            });
 
         let images = month_image.chain(following_images);
 

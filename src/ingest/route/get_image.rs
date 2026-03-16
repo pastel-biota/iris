@@ -9,8 +9,10 @@ use axum::{
 
 use crate::{
     Context,
-    model::Identifier,
-    route::{BinaryBody, ClientError, client_error},
+    ingest::{
+        model::Identifier,
+        route::{BinaryBody, ClientError, client_error},
+    },
 };
 
 /// Get actual image
@@ -97,7 +99,7 @@ pub async fn get_image(
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, image_meta.mime.as_str()),
-            (header::CACHE_CONTROL, "public, max-age=2592000, immutable")
+            (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
         ],
         photo_stream,
     )

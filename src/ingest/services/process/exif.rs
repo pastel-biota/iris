@@ -5,7 +5,7 @@ use anyhow::{Context, bail};
 use chrono::{DateTime, FixedOffset};
 use exif::{Exif, In, Tag, Value};
 
-use crate::model::{Orientation, Properties, Rational, Rotation};
+use crate::ingest::model::{Orientation, Properties, Rational, Rotation};
 
 pub struct ExifPayload {
     pub props: Properties,
