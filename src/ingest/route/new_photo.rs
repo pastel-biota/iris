@@ -19,7 +19,6 @@ use crate::{
         services::{
             process::{get_hash, process_image},
             property::process_properties,
-            resize::{RESIZE_TARGETS, resize_images},
         },
     },
 };
@@ -92,37 +91,28 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
             .upload_original_image(&photo_id, &original_ext, &bytes)
             .await
             .unwrap();
-        registry
-            .upload_image(
-                &photo_id,
-                processed.instant_image.target.id,
-                &processed.instant_image.meta,
-                &processed.instant_image.data,
-            )
-            .await
-            .unwrap();
 
         new_photo
     };
 
     tracing::info!("Starting resize");
 
-    let resized = resize_images(
-        processed.original_image,
-        RESIZE_TARGETS[1..=3].iter().collect(),
-    )
-    .await
-    .unwrap();
+    // let resized = resize_images(
+    //     processed.original_image,
+    //     RESIZE_TARGETS[1..=3].iter().collect(),
+    // )
+    // .await
+    // .unwrap();
 
     let mut registry = ctx.registry.write().await;
 
     let mut photo = new_photo;
-    for resized in resized.resized {
-        photo = registry
-            .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
-            .await
-            .unwrap();
-    }
+    // for resized in resized.resized {
+    //     photo = registry
+    //         .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
+    //         .await
+    //         .unwrap();
+    // }
 
     let response = NewPhotoResponse {
         photo: photo.into(),

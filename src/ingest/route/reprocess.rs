@@ -13,7 +13,6 @@ use crate::{
     ingest::{
         model::Identifier,
         route::{ClientError, SuccessfulResponse, client_error, success},
-        services::resize::{RESIZE_TARGETS, resize_images},
     },
 };
 
@@ -73,14 +72,14 @@ pub async fn reprocess(
 
     tracing::debug!("Starting the resize");
 
-    let targets = RESIZE_TARGETS
-        .iter()
-        .filter(|target| !photo.images.keys().any(|image_id| target.id == image_id))
-        .collect::<Vec<&_>>();
+    // let targets = RESIZE_TARGETS
+    //     .iter()
+    //     .filter(|target| !photo.images.keys().any(|image_id| target.id == image_id))
+    //     .collect::<Vec<&_>>();
 
-    if targets.is_empty() {
-        return StatusCode::NO_CONTENT.into_response();
-    }
+    // if targets.is_empty() {
+    //     return StatusCode::NO_CONTENT.into_response();
+    // }
 
     tracing::debug!("Reading the image");
 
@@ -99,15 +98,15 @@ pub async fn reprocess(
 
     tracing::debug!("Decoded! Resizing");
 
-    let resized = resize_images(original_photo, targets).await.unwrap();
+    // let resized = resize_images(original_photo, targets).await.unwrap();
 
-    let mut registry = ctx.registry.write().await;
-    for resized in resized.resized {
-        registry
-            .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
-            .await
-            .unwrap();
-    }
+    // let mut registry = ctx.registry.write().await;
+    // for resized in resized.resized {
+    //     registry
+    //         .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
+    //         .await
+    //         .unwrap();
+    // }
 
     (StatusCode::CREATED, Json(success(ReprocessResponse))).into_response()
 }

@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use clap::Parser;
 use config::Config as ConfigLoad;
 use serde::Deserialize;
 
-use crate::ingest::services::property::ProcessorConfig;
+use crate::{ingest::{config::IngestConfig, services::property::ProcessorConfig}, processor::config::ImageProcessConfig};
 
 #[derive(clap::Parser)]
 pub struct Args {
@@ -15,10 +13,9 @@ pub struct Args {
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub dir: PathBuf,
-    pub listen: String,
-    pub cors_origin: Vec<String>,
+    pub ingest: IngestConfig,
     pub processors: ProcessorConfig,
+    pub image: ImageProcessConfig,
 }
 
 pub fn parse_config() -> anyhow::Result<Config> {

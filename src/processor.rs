@@ -1,81 +1,45 @@
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
-
-use tokio::sync::{Notify, Semaphore};
-
 mod runner;
+mod protocol;
+mod image;
+pub mod config;
+pub mod queue;
 
-#[derive(Default)]
+use std::sync::Arc;
+
+pub use protocol::*;
+
+use crate::{Context, ingest::model::Identifier, processor::{config::ImageProcessConfig, queue::{ProcessorQueue, ProcessorRunner}}};
+
 pub struct ProcessorContext {
-    jobs: Arc<Mutex<VecDeque<JobApplication>>>,
-    closed: Arc<Notify>,
-    notify: Arc<Notify>,
+    pub config: ImageProcessConfig,
+    queue: Arc<ProcessorQueue>,
 }
 
 impl ProcessorContext {
-    pub fn add_job(&self, job: JobApplication) {
-        self.jobs.lock().unwrap().push_back(job);
-        self.notify.notify_one();
-    }
-
-    pub fn notify_job(&self) {
-        self.notify.notify_one();
-    }
-
-    pub fn notify_close(&self) {
-        self.closed.notify_one();
-    }
-}
-
-#[derive(Debug)]
-pub struct JobApplication {
-    pub id: usize,
-}
-
-pub struct ProcessorRunner {
-    jobs: Arc<Mutex<VecDeque<JobApplication>>>,
-    closed: Arc<Notify>,
-    notify: Arc<Notify>,
-    runner_semaphore: Semaphore,
-}
-
-impl ProcessorRunner {
-    pub fn from_context(context: &ProcessorContext) -> ProcessorRunner {
-        ProcessorRunner {
-            jobs: context.jobs.clone(),
-            closed: context.closed.clone(),
-            notify: context.notify.clone(),
-            runner_semaphore: Semaphore::new(4),
+    pub fn new(config: ImageProcessConfig) -> Self {
+        Self {
+            config,
+            queue: Arc::new(ProcessorQueue::default()),
         }
     }
+}
 
-    pub async fn start(self: Arc<Self>) {
-        loop {
-            println!("Polling");
-            tokio::select! {
-                _ = self.closed.notified() => { break },
-                _ = self.notify.notified() => {
-                    let cloned_self = self.clone();
-                    tokio::spawn(async move { cloned_self.handle_notify().await; });
-                }
+pub async fn run(ctx: Arc<Context>) -> anyhow::Result<()> {
+    Arc::new(ProcessorRunner::from_context(ctx))
+        .start()
+        .await
+}
+
+
+pub fn register_resize(ctx: &ProcessorContext, photo_id: Identifier, image_id: &str) {
+    let target = ctx.config.sizes.get(image_id).unwrap();
+
+    ctx.queue.add_job(JobApplication::ImageProcess(
+            ImageProcessJob {
+                photo_id,
+                image_id: image_id.to_string(),
+                target: target.clone()
             }
-        }
-    }
-
-    async fn handle_notify(&self) {
-        let _permit = self.runner_semaphore.acquire().await.unwrap();
-
-        while let Some(job) = {
-            self.jobs
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .pop_front()
-        } {
-            println!("Working on: {job:?} ...");
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            println!("  ... Done: {job:?}");
-        }
-    }
+    ));
 }
+
