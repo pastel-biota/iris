@@ -3,26 +3,26 @@ use std::{collections::HashMap, fmt::Debug};
 use serde::{Deserialize, de::DeserializeOwned};
 use toml::map::Map;
 
-use crate::ingest::model::Properties;
+use crate::model::Properties;
 
 #[derive(Debug, Deserialize)]
-pub struct ProcessorConfig(HashMap<String, toml::Value>);
+pub struct PropertyConfig(HashMap<String, toml::Value>);
 
-pub struct ProcessorContext {
+pub struct PropertyContext {
     hide_locations: HideLocation,
     hide_params: HideParameter,
 }
 
 pub fn create_property_processor_context(
-    config: &ProcessorConfig,
-) -> Result<ProcessorContext, anyhow::Error> {
-    Ok(ProcessorContext {
+    config: &PropertyConfig,
+) -> Result<PropertyContext, anyhow::Error> {
+    Ok(PropertyContext {
         hide_locations: parse_config::<HideLocation>(config)?,
         hide_params: parse_config::<HideParameter>(config)?,
     })
 }
 
-fn parse_config<T: PropertyProcessor>(config: &ProcessorConfig) -> Result<T, anyhow::Error> {
+fn parse_config<T: PropertyProcessor>(config: &PropertyConfig) -> Result<T, anyhow::Error> {
     let config_values = config
         .0
         .get(T::CONFIG_KEY)
@@ -35,7 +35,7 @@ fn parse_config<T: PropertyProcessor>(config: &ProcessorConfig) -> Result<T, any
 }
 
 pub fn process_properties(
-    context: &ProcessorContext,
+    context: &PropertyContext,
     props: Properties,
 ) -> Result<Properties, anyhow::Error> {
     let props = context.hide_locations.process(props)?;

@@ -3,11 +3,13 @@ use image::{DynamicImage, ImageReader, metadata::Orientation as OrientationMetad
 
 use anyhow::bail;
 
-use crate::{Context, ingest::model::{Orientation, Rotation}, processor::protocol::ImageProcessJob};
+use crate::{Context, model::{Orientation, Rotation}, processor::protocol::ImageProcessJob, services::image::resize::ResizeResult};
 
+#[tracing::instrument(level = "debug", skip_all, fields(
+    photo_id = job.photo_id.to_string(),
+    image_id = job.image_id,
+))]
 pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> anyhow::Result<()> {
-    let _span = tracing::debug_span!("Image Processing", photo_id = job.photo_id.to_string(), image_id=&job.image_id);
-
     tracing::debug!("Processing job picked up, getting the photo");
 
     let Some(photo) = ({ ctx.registry.write().await.load_photo(&job.photo_id)? }) else {
@@ -16,25 +18,35 @@ pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> an
 
     let original_image = { ctx.registry.write().await.load_original_image(&job.photo_id).await? };
 
-    tracing::debug!("Reading the image");
-    let original_image = ImageReader::new(Cursor::new(original_image))
-        .with_guessed_format()?
-        .decode()?;
+    let result = tokio::task::spawn_blocking({
+        let job = job.clone();
+        move || -> anyhow::Result<ResizeResult> {
+            tracing::debug!("Reading the image");
+            let original_image = ImageReader::new(Cursor::new(original_image))
+                .with_guessed_format()?
+                .decode()?;
 
-    tracing::debug!("Rotating the image upright");
-    let orientation = match photo.properties.orientation.as_ref() {
-        Some(orientation) => orientation,
-        None => &Orientation::default(),
-    };
+            tracing::debug!("Rotating the image upright");
+            let orientation = match photo.properties.orientation.as_ref() {
+                Some(orientation) => orientation,
+                None => &Orientation::default(),
+            };
 
-    let original_image = stand_image(orientation, original_image);
+            let original_image = stand_image(orientation, original_image);
 
-    tracing::debug!("Resizing");
-    let result = super::image::resize::resize_image(&job.image_id, job.target, &original_image)?;
+            tracing::debug!("Resizing");
+            let result = crate::services::image::resize::resize_image(&job.image_id, job.target, &original_image)?;
+
+            Ok(result)
+        }
+    }).await.unwrap()?;
 
     tracing::debug!("Registering");
-    let mut registry = ctx.registry.write().await;
-    registry.upload_image(&job.photo_id, &job.image_id, &result.meta, &result.data).await?;
+    
+    {
+        let mut registry = ctx.registry.write().await;
+        registry.upload_image(&job.photo_id, &job.image_id, &result.meta, &result.data).await?;
+    }
 
     tracing::debug!("The image '{}' has been processed", &job.image_id);
 

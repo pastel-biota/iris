@@ -116,13 +116,13 @@ impl Rational {
     }
 }
 
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
 pub struct Orientation {
     pub rotation: Rotation,
     pub flip: bool,
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rotation {
     #[default]
     Upright,

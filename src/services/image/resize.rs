@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use image::{DynamicImage, GenericImageView, ImageResult, imageops::FilterType, ImageFormat as SavingImageFormat};
-use crate::{ingest::model::ImageMeta, processor::config::{ImageFormat, ResizeTargets}};
+use crate::{model::ImageMeta, processor::config::{ImageFormat, ResizeTargets}};
 
 pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
     // icon
@@ -41,22 +41,6 @@ pub struct ResizeResult {
 pub struct Resized {
     pub resized: Vec<ResizeResult>,
 }
-
-// pub async fn resize_images(
-//     original: DynamicImage,
-//     target: Vec<&'static ResizeTargets>,
-// ) -> anyhow::Result<Resized> {
-//     let original = Arc::new(original);
-//     let resized = tokio::task::spawn_blocking(move || {
-//         target
-//             .par_iter()
-//             .map(|target| resize_image(target, original.clone()))
-//             .collect::<Result<Vec<_>, _>>()
-//     })
-//     .await??;
-// 
-//     Ok(Resized { resized })
-// }
 
 pub fn resize_image(
     id: &str,

@@ -9,12 +9,10 @@ use axum::{
 
 use crate::{
     Context,
-    ingest::{
-        model::Identifier,
-        route::{
-            ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success,
-        },
+    ingest::route::{
+        ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success,
     },
+    model::Identifier,
 };
 
 #[derive(Clone, Debug, serde::Deserialize)]

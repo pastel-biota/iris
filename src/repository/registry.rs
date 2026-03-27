@@ -3,8 +3,8 @@ use std::{collections::HashMap, path::Path};
 use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
 
-use crate::ingest::{
-    infra::{
+use crate::{
+    repository::{
         io::PhotoStorageDirectory,
         photo_index::{PhotoIndex, PhotoReference},
     },

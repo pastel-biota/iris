@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ingest::{
-    infra::photo_index::PhotoReference,
+use crate::{
     model::{ImageMeta, PhotoMeta, Properties},
+    repository::photo_index::PhotoReference,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]

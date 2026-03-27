@@ -6,8 +6,8 @@ use std::{
 
 use anyhow::Context as _;
 
-use crate::ingest::{
-    infra::photo_index::{PhotoIndexProvider, PhotoReference},
+use crate::{
+    repository::photo_index::{PhotoIndexProvider, PhotoReference},
     model::{Identifier, ImageMeta, PhotoMeta},
 };
 

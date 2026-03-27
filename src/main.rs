@@ -5,21 +5,28 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     config::parse_config,
+    event::{EventSender, create_event_bus},
     ingest::{
-        IngestContext, infra::registry::PhotoStorageRegistry, services::ServiceContext
+        IngestContext, services::ServiceContext
     },
-    processor::{ProcessorContext, register_resize},
+    processor::ProcessorContext,
+    repository::registry::PhotoStorageRegistry,
 };
 
 pub mod config;
+pub mod event;
 pub mod ingest;
+pub mod model;
 pub mod processor;
+pub mod repository;
+pub mod services;
 
 pub struct Context {
     pub ingest: IngestContext,
     pub registry: RwLock<PhotoStorageRegistry>,
     pub service: ServiceContext,
     pub processor: ProcessorContext,
+    pub event_tx: EventSender,
 }
 
 #[tokio::main]
@@ -50,37 +57,20 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<(), anyhow::Error> {
     let config = parse_config()?;
+    let (event_tx, event_rx) = create_event_bus(64);
 
     let ctx = Arc::new(Context {
         registry: RwLock::new(PhotoStorageRegistry::new(&config.ingest.dir)),
         service: ServiceContext::try_from_config(&config)?,
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
+        event_tx,
     });
 
     tokio::try_join!(
         async { tokio::spawn(ingest::run(ctx.clone())).await.unwrap() },
-        async { tokio::spawn(processor::run(ctx.clone())).await.unwrap() },
-        async {
-            let ctx = ctx.clone();
-            tokio::spawn({
-                async move {
-                    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                    process_image(ctx.clone());
-                    Ok(())
-                }
-            }).await.unwrap()
-        }
+        async { tokio::spawn(processor::run(ctx.clone(), event_rx)).await.unwrap() },
     ).unwrap();
 
     Ok(())
 }
-
-fn process_image(ctx: Arc<Context>) {
-    register_resize(
-        &ctx.processor,
-        "202601-01KKN2KYDKFM1Y7QXTAK6B6F66".parse().unwrap(),
-        "main",
-    );
-}
-

@@ -11,11 +11,11 @@ use utoipa_redoc::{Redoc, Servable as _};
 
 use crate::ingest::config::IngestConfig;
 
-pub mod infra;
-pub mod model;
-pub mod route;
-pub mod services;
 pub mod config;
+pub mod services;
+
+mod middleware;
+mod route;
 
 pub struct IngestContext {
     pub config: IngestConfig,
@@ -30,6 +30,16 @@ impl IngestContext {
 pub async fn run(
     ctx: Arc<crate::Context>,
 ) -> Result<(), anyhow::Error> {
+    let cors_origin = ctx.ingest.config
+        .cors_origin
+        .iter()
+        .map(|origin| {
+            origin
+                .parse()
+                .with_context(|| format!("The CORS origin is not valid: {}", origin))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
     let (router, openapi) = OpenApiRouter::new()
         .nest("/photos", photo_route(ctx.clone()))
         .split_for_parts();
@@ -44,17 +54,9 @@ pub async fn run(
         )
         .merge(Redoc::with_url("/docs", openapi))
         .layer(
-            CorsLayer::permissive().allow_origin(
-                ctx.ingest.config
-                    .cors_origin
-                    .iter()
-                    .map(|origin| {
-                        origin
-                            .parse()
-                            .with_context(|| format!("The CORS origin is not valid: {}", origin))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            ),
+            tower::ServiceBuilder::new()
+                .layer(CorsLayer::permissive().allow_origin(cors_origin))
+                .layer(axum::middleware::from_fn(middleware::access_log))
         );
 
     tracing::info!("Iris will be serving at http://{}", &ctx.ingest.config.listen);

@@ -1,4 +1,4 @@
-use crate::{ingest::model::Identifier, processor::config::ResizeTargets};
+use crate::{model::Identifier, processor::config::ResizeTargets};
 
 #[derive(Debug)]
 pub enum JobApplication {
@@ -6,7 +6,7 @@ pub enum JobApplication {
     ImageProcess(ImageProcessJob),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImageProcessJob {
     pub photo_id: Identifier,
     pub image_id: String,

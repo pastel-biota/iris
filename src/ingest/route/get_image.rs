@@ -9,10 +9,8 @@ use axum::{
 
 use crate::{
     Context,
-    ingest::{
-        model::Identifier,
-        route::{BinaryBody, ClientError, client_error},
-    },
+    ingest::route::{BinaryBody, ClientError, client_error},
+    model::Identifier,
 };
 
 /// Get actual image

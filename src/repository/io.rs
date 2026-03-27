@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use tokio::{
@@ -10,7 +7,7 @@ use tokio::{
     pin,
 };
 
-use crate::ingest::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::model::{Identifier, ImageMeta, PhotoMeta};
 
 pub struct PhotoStorageDirectory {
     base_dir: PathBuf,

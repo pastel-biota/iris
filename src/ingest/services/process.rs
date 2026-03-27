@@ -1,18 +1,16 @@
-mod color;
-mod exif;
-mod hash;
-mod original;
-mod stand;
-
-use std::io::Cursor;
-
-use anyhow::Context as _;
+use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
-use image::{DynamicImage, ImageReader, Rgb};
+use image::{DynamicImage, Rgb};
 
-use crate::ingest::{
+use crate::{
     model::{ImageMeta, Orientation, Properties},
+    services::{
+        extract::{color, exif},
+        image::{decode, stand},
+    },
 };
+
+pub use crate::services::hash::retrieve_file_hash as get_hash;
 
 pub struct ProcessedImage {
     pub shot_time: DateTime<FixedOffset>,
@@ -21,28 +19,20 @@ pub struct ProcessedImage {
     pub original_meta: ImageMeta,
     pub original_image: DynamicImage,
 }
-pub fn get_hash(original_bytes: &[u8]) -> String {
-    hash::retrieve_file_hash(&original_bytes)
-}
 
-pub async fn process_image(original_bytes: &[u8]) -> anyhow::Result<ProcessedImage> {
+pub async fn process_image(original_bytes: Bytes) -> anyhow::Result<ProcessedImage> {
     let exif_payloads = exif::read_exif(&original_bytes).await?;
 
-    let reader = ImageReader::new(Cursor::new(original_bytes)).with_guessed_format()?;
-    let format = reader
-        .format()
-        .context("Could not guess the provided image's format")?;
-
-    let original = reader.decode()?;
-    tracing::info!("Finished decoding. Strarting resize");
+    let decoded = decode::decode_image(original_bytes.clone()).await?;
+    tracing::info!("Finished decoding. Starting resize");
 
     let orientation = match exif_payloads.props.orientation.as_ref() {
         Some(orientation) => orientation,
         None => &Orientation::default(),
     };
 
-    let original_meta = original::get_original_image_meta(&original, &format).await?;
-    let stood = stand::stand_image(orientation, original);
+    let original_meta = decode::get_original_image_meta(&decoded.image, &decoded.format)?;
+    let stood = stand::stand_image(orientation, decoded.image).await;
     let averaged_color = color::average_color(&stood);
 
     Ok(ProcessedImage {

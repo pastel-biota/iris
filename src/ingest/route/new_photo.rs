@@ -10,9 +10,8 @@ use axum::{
 
 use crate::{
     Context,
+    event::Event,
     ingest::{
-        infra::registry::NewPhotoParam,
-        model::Identifier,
         route::{
             BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
         },
@@ -21,6 +20,8 @@ use crate::{
             property::process_properties,
         },
     },
+    model::Identifier,
+    repository::registry::NewPhotoParam,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -61,15 +62,17 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
     let sha256 = get_hash(&bytes);
 
     {
+        tracing::debug!("Retrieving registry for verifying the conflict");
         let mut registry = ctx.registry.write().await;
+        tracing::debug!("Retrieved registry");
 
         if registry.image_exists_with_hash(&sha256).unwrap() {
             return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
         }
     }
 
-    let processed = process_image(&bytes).await.unwrap();
-    let properties = process_properties(&ctx.service.proceessor, processed.image_property).unwrap();
+    let processed = process_image(bytes.clone()).await.unwrap();
+    let properties = process_properties(&ctx.service.property, processed.image_property).unwrap();
 
     let photo_id = Identifier::new(&processed.shot_time, &ulid::Ulid::new().to_string());
 
@@ -95,27 +98,13 @@ pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl Into
         new_photo
     };
 
-    tracing::info!("Starting resize");
-
-    // let resized = resize_images(
-    //     processed.original_image,
-    //     RESIZE_TARGETS[1..=3].iter().collect(),
-    // )
-    // .await
-    // .unwrap();
-
-    let mut registry = ctx.registry.write().await;
-
-    let mut photo = new_photo;
-    // for resized in resized.resized {
-    //     photo = registry
-    //         .upload_image(&photo_id, &resized.target.id, &resized.meta, &resized.data)
-    //         .await
-    //         .unwrap();
-    // }
+    ctx.event_tx
+        .send(Event::PhotoRegistered { photo_id: photo_id.clone() })
+        .await
+        .unwrap();
 
     let response = NewPhotoResponse {
-        photo: photo.into(),
+        photo: new_photo.into(),
     };
 
     (StatusCode::CREATED, Json(success(response))).into_response()

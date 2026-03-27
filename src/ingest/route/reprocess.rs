@@ -10,10 +10,8 @@ use image::ImageReader;
 
 use crate::{
     Context,
-    ingest::{
-        model::Identifier,
-        route::{ClientError, SuccessfulResponse, client_error, success},
-    },
+    ingest::route::{SuccessfulResponse, client_error, success},
+    model::Identifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]

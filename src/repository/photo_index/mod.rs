@@ -6,7 +6,7 @@ use std::{collections::HashMap, fs::File, path::Path};
 use anyhow::Context as _;
 use chrono::{DateTime, FixedOffset};
 
-use crate::ingest::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::model::{Identifier, ImageMeta, PhotoMeta};
 
 use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
 
