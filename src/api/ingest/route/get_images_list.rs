@@ -9,9 +9,9 @@ use axum::{
 
 use crate::{
     Context,
-    ingest::route::{
-        ClientError, SuccessfulResponse, client_error, scheme::PhotoReferenceSchema, success,
-    },
+    api::{ingest::route::scheme::PhotoReferenceSchema, types::{
+        ClientError, SuccessfulResponse, client_error, success,
+    }},
     model::Identifier,
 };
 

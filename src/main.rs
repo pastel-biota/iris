@@ -4,18 +4,14 @@ use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    config::parse_config,
-    event::{EventSender, create_event_bus},
-    ingest::{
+    api::{federation::FederationContext, ingest::{
         IngestContext, technicals::image::ServiceContext
-    },
-    processor::ProcessorContext,
-    repository::registry::PhotoStorageRegistry,
+    }}, config::parse_config, event::{EventSender, create_event_bus}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
 };
 
+pub mod api;
 pub mod config;
 pub mod event;
-pub mod ingest;
 pub mod model;
 pub mod processor;
 pub mod repository;
@@ -27,6 +23,7 @@ pub struct Context {
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
+    pub federation: FederationContext,
 }
 
 #[tokio::main]
@@ -64,11 +61,12 @@ async fn run() -> Result<(), anyhow::Error> {
         service: ServiceContext::try_from_config(&config)?,
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
+        federation: FederationContext::new(config.federation),
         event_tx,
     });
 
     tokio::try_join!(
-        async { tokio::spawn(ingest::run(ctx.clone())).await.unwrap() },
+        async { tokio::spawn(api::run(ctx.clone())).await.unwrap() },
         async { tokio::spawn(processor::run(ctx.clone(), event_rx)).await.unwrap() },
     ).unwrap();
 

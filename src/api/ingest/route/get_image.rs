@@ -9,7 +9,7 @@ use axum::{
 
 use crate::{
     Context,
-    ingest::route::{BinaryBody, ClientError, client_error},
+    api::types::{BinaryBody, ClientError, client_error},
     model::Identifier,
 };
 

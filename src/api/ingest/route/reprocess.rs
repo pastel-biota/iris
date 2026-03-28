@@ -10,7 +10,7 @@ use image::ImageReader;
 
 use crate::{
     Context,
-    ingest::route::{SuccessfulResponse, client_error, success},
+    api::types::{SuccessfulResponse, client_error, success},
     model::Identifier,
 };
 

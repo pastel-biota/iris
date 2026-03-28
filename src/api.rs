@@ -1,3 +1,8 @@
+pub mod ingest;
+pub mod middleware;
+pub mod types;
+pub mod federation;
+
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -6,25 +11,7 @@ use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
-use route::photo_route;
 use utoipa_redoc::{Redoc, Servable as _};
-
-use crate::ingest::config::IngestConfig;
-
-pub mod config;
-mod middleware;
-mod route;
-pub mod technicals;
-
-pub struct IngestContext {
-    pub config: IngestConfig,
-}
-
-impl IngestContext {
-    pub fn new(config: IngestConfig) -> Self {
-        Self { config }
-    }
-}
 
 pub async fn run(
     ctx: Arc<crate::Context>,
@@ -40,7 +27,8 @@ pub async fn run(
         .collect::<Result<Vec<_>, _>>()?;
 
     let (router, openapi) = OpenApiRouter::new()
-        .nest("/photos", photo_route(ctx.clone()))
+        .nest("/photos", ingest::route::photo_route(ctx.clone()))
+        .nest("/federation", federation::route::federation_route(ctx.clone()))
         .split_for_parts();
 
     let router = router

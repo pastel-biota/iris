@@ -9,19 +9,12 @@ use axum::{
 };
 
 use crate::{
-    Context,
-    event::Event,
-    ingest::{
-        route::{
-            BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
-        },
-        technicals::image::{
-            process::{get_hash, process_image},
-            property::process_properties,
-        },
-    },
-    model::Identifier,
-    repository::registry::NewPhotoParam,
+    Context, api::{ingest::{route::scheme::PhotoScheme, technicals::image::{
+        process::{get_hash, process_image},
+        property::process_properties,
+    }}, types::{
+        BinaryBody, ClientError, SuccessfulResponse, client_error, success,
+    }}, event::Event, model::Identifier, repository::registry::NewPhotoParam
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]

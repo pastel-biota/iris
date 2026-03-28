@@ -1,30 +1,6 @@
-pub mod get_image;
-pub mod get_images_list;
-pub mod get_photo_meta;
-pub mod get_photos_list_by_hashes_list;
-pub mod new_photo;
-pub mod reprocess;
-pub mod scheme;
-
-use std::{ops::Deref, sync::Arc};
+use std::ops::Deref;
 
 use utoipa::ToSchema;
-use utoipa_axum::{router::OpenApiRouter, routes};
-
-use crate::Context;
-
-pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
-    OpenApiRouter::new()
-        .routes(routes!(new_photo::new_photo))
-        .routes(routes!(get_photo_meta::get_photo_meta))
-        .routes(routes!(get_image::get_image))
-        .routes(routes!(get_images_list::get_images_list))
-        .routes(routes!(
-            get_photos_list_by_hashes_list::get_photos_list_by_hashes_list
-        ))
-        .routes(routes!(reprocess::reprocess))
-        .with_state(ctx)
-}
 
 #[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct SuccessfulResponse<T> {
@@ -59,7 +35,7 @@ pub fn client_error(reason: &str) -> ClientError {
 
 #[derive(ToSchema)]
 #[schema(value_type = String, format = Binary)]
-struct BinaryBody(Vec<u8>);
+pub struct BinaryBody(Vec<u8>);
 
 impl Deref for BinaryBody {
     type Target = [u8];
