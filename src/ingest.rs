@@ -12,10 +12,9 @@ use utoipa_redoc::{Redoc, Servable as _};
 use crate::ingest::config::IngestConfig;
 
 pub mod config;
-pub mod services;
-
 mod middleware;
 mod route;
+pub mod technicals;
 
 pub struct IngestContext {
     pub config: IngestConfig,

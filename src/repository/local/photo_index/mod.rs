@@ -4,9 +4,8 @@ pub mod original_hash;
 use std::{collections::HashMap, fs::File, path::Path};
 
 use anyhow::Context as _;
-use chrono::{DateTime, FixedOffset};
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::model::{Identifier, ImageMeta, PhotoMeta, PhotoReference};
 
 use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
 
@@ -44,14 +43,17 @@ impl PhotoIndex {
         Ok(())
     }
 
+    pub fn get_photo_ref(&mut self, photo_id: &Identifier) -> anyhow::Result<Option<&PhotoReference>> {
+        self.hash_index.get_photo_ref(photo_id)
+    }
+
     pub fn list_images(
         &mut self,
         beginning: Option<&Identifier>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         if let Some(beginning) = beginning {
-            self.all_index
-                .list_images_beginning_from_photo(beginning, size)
+            self.all_index.list_images_beginning_from_photo(beginning, size)
         } else {
             self.all_index.list_first_n_images(size)
         }
@@ -65,40 +67,12 @@ impl PhotoIndex {
         &'s mut self,
         hash: &'h [String],
     ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
-        self.hash_index.get_photos_list_from_hashes_list(hash)
+        self.hash_index
+            .get_photos_list_from_hashes_list(hash)
     }
 
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
         self.all_index.total_count()
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct PhotoReference {
-    pub id: Identifier,
-    pub year: i32,
-    pub month: u32,
-    pub hash: String,
-    pub images: HashMap<String, ImageMeta>,
-    pub shot_time: DateTime<FixedOffset>,
-    pub representative_rgb: [u8; 3],
-}
-
-impl From<PhotoMeta> for PhotoReference {
-    fn from(value: PhotoMeta) -> Self {
-        Self {
-            year: value.id.year,
-            month: value.id.month,
-            id: value.id,
-            hash: value.original_sha256,
-            images: value
-                .images
-                .into_iter()
-                .map(|(k, v)| (k, v.into()))
-                .collect(),
-            shot_time: value.shot_time,
-            representative_rgb: value.representative_rgb,
-        }
     }
 }
 

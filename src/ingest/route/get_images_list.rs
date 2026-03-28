@@ -82,7 +82,7 @@ pub async fn get_images_list(
     };
 
     let next_cursor = if photos.len() == size {
-        photos.last().map(|photo| &photo.id)
+        photos.last().map(|photo| photo.id())
     } else {
         None
     };

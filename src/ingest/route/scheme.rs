@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 
-use crate::{
-    model::{ImageMeta, PhotoMeta, Properties},
-    repository::photo_index::PhotoReference,
-};
+use crate::model::{ImageMeta, PhotoMeta, PhotoReference, Properties};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
     /// Identifier assigned to the created photo.
     #[schema(example = "202601_img_0001_jpg-01AAAA")]
     id: String,
+
+    federator: Option<String>,
 
     /// The hexadecimal representation of SHA256 hash.
     #[schema(
@@ -34,7 +33,8 @@ pub struct PhotoScheme {
 impl From<PhotoMeta> for PhotoScheme {
     fn from(value: PhotoMeta) -> Self {
         Self {
-            id: value.id.to_string(),
+            id: value.id().to_string(),
+            federator: value.origin.federator().map(|str| str.to_string()),
             original_sha256: value.original_sha256,
             images: value
                 .images
@@ -128,6 +128,7 @@ impl From<Properties> for PropertiesSchema {
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct PhotoReferenceSchema {
     id: String,
+    federator: Option<String>,
     year: i32,
     month: u32,
     original_sha256: String,
@@ -139,9 +140,10 @@ pub struct PhotoReferenceSchema {
 impl From<PhotoReference> for PhotoReferenceSchema {
     fn from(value: PhotoReference) -> Self {
         PhotoReferenceSchema {
-            year: value.id.year,
-            month: value.id.month,
-            id: value.id.to_string(),
+            year: value.id().year,
+            month: value.id().month,
+            id: value.id().to_string(),
+            federator: value.origin.federator().map(|str| str.to_string()),
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
             images: value
@@ -156,3 +158,4 @@ impl From<PhotoReference> for PhotoReferenceSchema {
         }
     }
 }
+

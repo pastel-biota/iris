@@ -3,7 +3,7 @@ use clap::Parser;
 use config::Config as ConfigLoad;
 use serde::Deserialize;
 
-use crate::{ingest::{config::IngestConfig, services::property::PropertyConfig}, processor::config::ImageProcessConfig};
+use crate::{ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, processor::config::ImageProcessConfig};
 
 #[derive(clap::Parser)]
 pub struct Args {

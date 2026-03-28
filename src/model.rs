@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, str::FromStr};
+use std::{collections::HashMap, fmt::{self, Display}, ops::Deref, str::FromStr};
 
 use chrono::{DateTime, Datelike, FixedOffset};
 use serde::{Deserialize, Serialize};
@@ -56,15 +56,38 @@ impl FromStr for Identifier {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct LocalIdentifier(pub Identifier);
+
+impl Display for LocalIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Deref for LocalIdentifier {
+    type Target = Identifier;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhotoMeta {
-    pub id: Identifier,
+    pub origin: PhotoOrigin,
     pub original: ImageMeta,
     pub images: HashMap<String, ImageMeta>,
     pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
+}
+
+impl PhotoMeta {
+    pub fn id(&self) -> &Identifier {
+        self.origin.id()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -130,3 +153,71 @@ pub enum Rotation {
     CounterClockwise,
     Clockwise,
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct PhotoReference {
+    pub origin: PhotoOrigin,
+    pub year: i32,
+    pub month: u32,
+    pub hash: String,
+    pub images: HashMap<String, ImageMeta>,
+    pub shot_time: DateTime<FixedOffset>,
+    pub representative_rgb: [u8; 3],
+}
+
+impl PhotoReference {
+    pub fn id(&self) -> &Identifier {
+        self.origin.id()
+    }
+}
+
+impl From<PhotoMeta> for PhotoReference {
+    fn from(value: PhotoMeta) -> Self {
+        Self {
+            year: value.origin.id().year,
+            month: value.origin.id().month,
+            origin: value.origin,
+            hash: value.original_sha256,
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
+            shot_time: value.shot_time,
+            representative_rgb: value.representative_rgb,
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub enum PhotoOrigin {
+    Local(LocalIdentifier),
+    Federated {
+        federator: String,
+        identifier: Identifier,
+    }
+} 
+
+impl PhotoOrigin {
+    pub fn local_id(&self) -> Option<&LocalIdentifier> {
+        match self {
+            Self::Local(id) => Some(id),
+            Self::Federated { .. } => None,
+        }
+    }
+
+    pub fn id(&self) -> &Identifier {
+        match self {
+            Self::Local(id) => &id.0,
+            Self::Federated { identifier, .. } => identifier,
+        }
+    }
+
+    pub fn federator(&self) -> Option<&str> {
+        match self {
+            Self::Local(id) => None,
+            Self::Federated { federator, .. } => Some(federator),
+        }
+    }
+}
+

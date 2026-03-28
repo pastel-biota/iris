@@ -1,14 +1,13 @@
 use std::{
     collections::HashMap,
     fs::File,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, process::id,
 };
 
-use anyhow::Context as _;
+use anyhow::{Context as _};
 
 use crate::{
-    repository::photo_index::{PhotoIndexProvider, PhotoReference},
-    model::{Identifier, ImageMeta, PhotoMeta},
+    model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::photo_index::PhotoIndexProvider,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -63,8 +62,9 @@ impl PhotoIndexProvider for OriginalSha256Index {
         let photo = index
             .pics
             .values_mut()
-            .find(|photo| &photo.id == photo_id)
+            .find(|photo| photo.id() == photo_id)
             .context("The image was not found")?;
+
         photo
             .images
             .insert(image_id.to_string(), image.clone().into());
@@ -86,6 +86,15 @@ impl OriginalSha256Index {
             path: path.to_path_buf(),
             content: None,
         }
+    }
+
+    pub fn get_photo_ref(&mut self, id: &Identifier) -> anyhow::Result<Option<&PhotoReference>> {
+        let IndexEntry::V1(index) = self.load_mut()?;
+
+        Ok(index.pics
+            .iter()
+            .find(|(_id, photo_ref)| photo_ref.id() == id)
+            .map(|(_id, photo_ref)| photo_ref))
     }
 
     pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {

@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use tokio::{
     fs::File,
     io::{AsyncRead, AsyncReadExt as _},
     pin,
 };
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta};
+use crate::model::{ImageMeta, LocalIdentifier, PhotoMeta};
 
 pub struct PhotoStorageDirectory {
     base_dir: PathBuf,
@@ -20,7 +20,7 @@ impl PhotoStorageDirectory {
         }
     }
 
-    pub fn load_photo_meta(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
+    pub fn load_photo_meta(&mut self, id: &LocalIdentifier) -> anyhow::Result<Option<PhotoMeta>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         if !self.photo_exists(id) {
@@ -38,7 +38,7 @@ impl PhotoStorageDirectory {
 
     pub async fn load_image(
         &mut self,
-        photo_id: &Identifier,
+        photo_id: &LocalIdentifier,
         image_id: &str,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {
@@ -59,7 +59,7 @@ impl PhotoStorageDirectory {
 
     pub async fn load_original_image(
         &mut self,
-        photo_id: &Identifier,
+        photo_id: &LocalIdentifier,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
@@ -77,17 +77,21 @@ impl PhotoStorageDirectory {
         Ok(vec)
     }
 
-    pub fn photo_exists(&self, id: &Identifier) -> bool {
+    pub fn photo_exists(&self, id: &LocalIdentifier) -> bool {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         paths.meta().exists()
     }
 
     pub fn create_new_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
-        let paths = PathsForPhoto::from_id(&self.base_dir, &meta.id);
+        let Some(id) = meta.origin.local_id() else {
+            bail!("The PhotoMeta is not local to this instance");
+        };
+
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         if paths.meta().exists() {
-            anyhow::bail!("The metafile collided ('{}')", &meta.id.to_string());
+            anyhow::bail!("The metafile collided ('{}')", id);
         }
 
         if !paths.base_dir.exists() {
@@ -110,7 +114,7 @@ impl PhotoStorageDirectory {
 
     pub async fn upload_image(
         &mut self,
-        photo_id: &Identifier,
+        photo_id: &LocalIdentifier,
         image_id: &str,
         image: &ImageMeta,
         image_data: impl AsyncRead,
@@ -137,7 +141,7 @@ impl PhotoStorageDirectory {
 
     pub async fn upload_original_image(
         &mut self,
-        id: &Identifier,
+        id: &LocalIdentifier,
         extension: &str,
         image_data: impl AsyncRead,
     ) -> anyhow::Result<()> {
@@ -175,11 +179,11 @@ impl PhotoStorageDirectory {
 
 struct PathsForPhoto {
     base_dir: PathBuf,
-    id: Identifier,
+    id: LocalIdentifier,
 }
 
 impl PathsForPhoto {
-    pub fn from_id(base_dir: &Path, id: &Identifier) -> Self {
+    pub fn from_id(base_dir: &Path, id: &LocalIdentifier) -> Self {
         PathsForPhoto {
             base_dir: base_dir
                 .join(format!("{:04}", id.year))

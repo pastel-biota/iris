@@ -7,7 +7,7 @@ use crate::{
     config::parse_config,
     event::{EventSender, create_event_bus},
     ingest::{
-        IngestContext, services::ServiceContext
+        IngestContext, technicals::image::ServiceContext
     },
     processor::ProcessorContext,
     repository::registry::PhotoStorageRegistry,

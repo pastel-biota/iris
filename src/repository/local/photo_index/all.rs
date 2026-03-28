@@ -6,10 +6,7 @@ use std::{
 
 use anyhow::{Context as _, bail};
 
-use crate::{
-    repository::photo_index::PhotoReference,
-    model::{Identifier, ImageMeta, PhotoMeta},
-};
+use crate::model::{Identifier, ImageMeta, PhotoMeta, PhotoReference};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AllImageIndex {
@@ -67,14 +64,14 @@ impl AllImageIndex {
 
         let month_pics = index
             .pics
-            .entry(photo.id.year.to_string())
+            .entry(photo.id().year.to_string())
             .or_insert(HashMap::new())
-            .entry(photo.id.month.to_string())
+            .entry(photo.id().month.to_string())
             .or_insert(vec![]);
 
         if month_pics
             .iter()
-            .any(|stored_photo| stored_photo.id == photo.id)
+            .any(|stored_photo| stored_photo.id() == photo.id())
         {
             anyhow::bail!("There already is an identifier with that photo")
         }
@@ -105,7 +102,7 @@ impl AllImageIndex {
             .pics
             .get_mut(&photo_id.year.to_string())
             .and_then(|year| year.get_mut(&photo_id.month.to_string()))
-            .and_then(|month| month.iter_mut().find(|photo| &photo.id == photo_id))
+            .and_then(|month| month.iter_mut().find(|photo| photo.id() == photo_id))
         else {
             bail!("Image was not found")
         };
@@ -157,7 +154,7 @@ impl AllImageIndex {
         let month_image = photos
             .iter()
             .rev()
-            .skip_while(|photo| &photo.id != ident)
+            .skip_while(|photo| photo.id() != ident)
             .skip(1);
 
         let following_images = index

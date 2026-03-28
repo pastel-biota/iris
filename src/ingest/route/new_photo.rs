@@ -15,7 +15,7 @@ use crate::{
         route::{
             BinaryBody, ClientError, SuccessfulResponse, client_error, scheme::PhotoScheme, success,
         },
-        services::{
+        technicals::image::{
             process::{get_hash, process_image},
             property::process_properties,
         },
