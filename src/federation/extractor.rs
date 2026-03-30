@@ -14,7 +14,7 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         parts
             .headers
-            .get("x-iris-requesting-instance")
+            .get("x-iris-signature")
             .and_then(|v| v.to_str().ok())
             .map(|v| RequestingInstance(v.to_string()))
             .ok_or(StatusCode::BAD_REQUEST)

@@ -18,10 +18,17 @@ pub struct Args {
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    #[serde(flatten)]
+    pub base: BaseConfig,
     pub ingest: IngestConfig,
     pub processors: PropertyConfig,
     pub image: ImageProcessConfig,
     pub federation: FederationConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BaseConfig {
+    pub host: String,
 }
 
 pub fn parse_config() -> anyhow::Result<Config> {

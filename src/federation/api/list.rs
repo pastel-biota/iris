@@ -33,9 +33,10 @@ pub async fn list(
     RequestingInstance(instance): RequestingInstance,
 ) -> impl IntoResponse {
     dbg!(&ctx.federation.config);
+    dbg!(&instance);
 
     let photos = ctx.federation.repo
-        .list_federated_photos(&instance)
+        .list_federated_photos("local-2")
         .unwrap()
         .iter()
         .map(|id| id.to_string())

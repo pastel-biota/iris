@@ -4,12 +4,7 @@ use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    federation::context::FederationContext,
-    ingest::context::{IngestContext, ServiceContext},
-    config::parse_config,
-    event::{EventSender, create_event_bus},
-    processor::ProcessorContext,
-    repository::registry::PhotoStorageRegistry,
+    config::{BaseConfig, parse_config}, event::{EventSender, create_event_bus}, federation::context::FederationContext, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
 };
 
 pub mod config;
@@ -21,8 +16,10 @@ pub mod model;
 pub mod processor;
 pub mod repository;
 pub mod services;
+pub mod util;
 
 pub struct Context {
+    pub base: BaseConfig,
     pub ingest: IngestContext,
     pub registry: RwLock<PhotoStorageRegistry>,
     pub service: ServiceContext,
@@ -67,6 +64,7 @@ async fn run() -> Result<(), anyhow::Error> {
         federation: FederationContext::new(&config.ingest.dir, config.federation),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
+        base: config.base,
         event_tx,
     });
 

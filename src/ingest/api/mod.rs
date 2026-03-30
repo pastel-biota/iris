@@ -24,3 +24,4 @@ pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
         .routes(routes!(reprocess::reprocess))
         .with_state(ctx)
 }
+

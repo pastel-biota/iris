@@ -8,8 +8,7 @@ use axum::{
 };
 
 use crate::{
-    Context,
-    infra::api::types::{ClientError, SuccessfulResponse, success},
+    Context, federation::request::create_client, infra::api::types::{ClientError, SuccessfulResponse, success}
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -33,7 +32,12 @@ pub async fn ping(
 ) -> impl IntoResponse {
     dbg!(&ctx.federation.config);
 
-    dbg!(ctx.federation.repo.load());
+    create_client()
+        .get("http://home-prime.akita-koi.ts.net:10100/federation/photos")
+        .with_extension(ctx.clone())
+        .send()
+        .await
+        .unwrap();
 
     (
         StatusCode::OK,
