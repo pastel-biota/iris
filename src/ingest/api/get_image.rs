@@ -9,7 +9,7 @@ use axum::{
 
 use crate::{
     Context,
-    api::types::{BinaryBody, ClientError, client_error},
+    infra::api::types::{BinaryBody, ClientError, client_error},
     model::Identifier,
 };
 

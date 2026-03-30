@@ -18,4 +18,3 @@ pub async fn access_log(req: Request, next: Next) -> Response {
 
     response
 }
-

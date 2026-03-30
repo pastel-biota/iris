@@ -9,7 +9,8 @@ use axum::{
 
 use crate::{
     Context,
-    api::{ingest::route::scheme::PhotoScheme, types::{ClientError, SuccessfulResponse, client_error, success}},
+    ingest::api::scheme::PhotoScheme,
+    infra::api::types::{ClientError, SuccessfulResponse, client_error, success},
     model::Identifier,
 };
 

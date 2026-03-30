@@ -184,7 +184,6 @@ impl AllImageIndex {
         }
 
         if !self.path.exists() {
-            dbg!(&self.path);
             self.content = Some(self.init()?);
             return Ok(());
         }

@@ -1,9 +1,16 @@
 use crate::config::Config;
+use crate::ingest::config::IngestConfig;
+use crate::ingest::technicals::image::property::{PropertyContext, create_property_processor_context};
 
-use self::property::{PropertyContext, create_property_processor_context};
+pub struct IngestContext {
+    pub config: IngestConfig,
+}
 
-pub mod process;
-pub mod property;
+impl IngestContext {
+    pub fn new(config: IngestConfig) -> Self {
+        Self { config }
+    }
+}
 
 pub struct ServiceContext {
     pub property: PropertyContext,

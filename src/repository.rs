@@ -1,5 +1,4 @@
 mod local;
-mod federation;
 pub mod registry;
 
 use std::collections::HashMap;
@@ -7,7 +6,6 @@ use std::collections::HashMap;
 use crate::model::{Identifier, ImageMeta, PhotoMeta, PhotoReference};
 
 pub use local::*;
-pub use federation::config::FederationConfig;
 
 // the trait with async fn is discouraged if it's public but this is for Iris only
 // vis keyword "pub(crate)" marks that this is crate-local and suppresses the said warning

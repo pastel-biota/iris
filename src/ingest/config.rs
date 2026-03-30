@@ -8,4 +8,3 @@ pub struct IngestConfig {
     pub listen: String,
     pub cors_origin: Vec<String>,
 }
-

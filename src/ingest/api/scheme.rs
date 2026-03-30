@@ -158,4 +158,3 @@ impl From<PhotoReference> for PhotoReferenceSchema {
         }
     }
 }
-

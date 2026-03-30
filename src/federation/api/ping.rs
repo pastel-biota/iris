@@ -9,7 +9,7 @@ use axum::{
 
 use crate::{
     Context,
-    api::types::{ClientError, SuccessfulResponse, success},
+    infra::api::types::{ClientError, SuccessfulResponse, success},
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -32,6 +32,8 @@ pub async fn ping(
     State(ctx): State<Arc<Context>>,
 ) -> impl IntoResponse {
     dbg!(&ctx.federation.config);
+
+    dbg!(ctx.federation.repo.load());
 
     (
         StatusCode::OK,
