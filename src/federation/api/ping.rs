@@ -8,7 +8,7 @@ use axum::{
 };
 
 use crate::{
-    Context, federation::request::create_client, infra::api::types::{ClientError, SuccessfulResponse, success}
+    Context, federation::{api::list::ListFederatedPhotoResponse, request::create_client}, infra::api::types::{ClientError, IrisResponse, SuccessfulResponse, success}
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -30,14 +30,17 @@ pub struct PingResponse {
 pub async fn ping(
     State(ctx): State<Arc<Context>>,
 ) -> impl IntoResponse {
-    dbg!(&ctx.federation.config);
-
-    create_client()
-        .get("http://home-prime.akita-koi.ts.net:10100/federation/photos")
+    let req = create_client()
+        .get("http://home-prime.akita-koi.ts.net:8080/federation/photos?limit=1&offset=10")
         .with_extension(ctx.clone())
         .send()
         .await
+        .unwrap()
+        .json::<IrisResponse<ListFederatedPhotoResponse>>()
+        .await
         .unwrap();
+
+    dbg!(req);
 
     (
         StatusCode::OK,

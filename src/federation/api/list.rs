@@ -1,17 +1,14 @@
 use std::sync::Arc;
 
 use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
+    Extension, Json, extract::State, http::StatusCode, response::IntoResponse
 };
 
 use crate::{
-    Context, federation::extractor::RequestingInstance, infra::api::types::{ClientError, SuccessfulResponse, success}, model::Identifier
+    Context, federation::{api::IrisHost, extractor::IrisSignature}, infra::api::types::{ClientError, SuccessfulResponse, success}, model::Identifier
 };
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ListFederatedPhotoResponse {
     photos: Vec<String>,
 }
@@ -30,13 +27,10 @@ pub struct ListFederatedPhotoResponse {
 )]
 pub async fn list(
     State(ctx): State<Arc<Context>>,
-    RequestingInstance(instance): RequestingInstance,
+    Extension(IrisHost(instance)): Extension<IrisHost>,
 ) -> impl IntoResponse {
-    dbg!(&ctx.federation.config);
-    dbg!(&instance);
-
     let photos = ctx.federation.repo
-        .list_federated_photos("local-2")
+        .list_federated_photos(&instance)
         .unwrap()
         .iter()
         .map(|id| id.to_string())

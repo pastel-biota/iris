@@ -2,6 +2,13 @@ use std::ops::Deref;
 
 use utoipa::ToSchema;
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum IrisResponse<T> {
+    Okay { response: T },
+    Error { reason: String },
+}
+
 #[derive(serde::Serialize, utoipa::ToSchema)]
 pub struct SuccessfulResponse<T> {
     #[schema(example = "okay")]
