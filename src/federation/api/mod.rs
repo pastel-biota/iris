@@ -8,7 +8,7 @@ use http::StatusCode;
 use image::EncodableLayout;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{Context, federation::{auth::{self, ChallengePayload}, extractor::IrisSignature}};
+use crate::{Context, federation::{auth::{self, ChallengePayload}, extractor::IrisSignature, protocol::{self, Endpoint as _}}};
 
 pub fn federation_route(ctx: Arc<Context>) -> OpenApiRouter {
     OpenApiRouter::new()
@@ -29,7 +29,7 @@ async fn verify_hash(
     next: Next
 ) -> Result<Response, StatusCode> {
     let Some(sig) = sig else {
-        if req.uri().path() == "/ping" {
+        if req.uri().path() == protocol::Health::PATH.1 {
             return Ok(next.run(req).await);
         };
         return Err(StatusCode::FORBIDDEN);
@@ -38,13 +38,17 @@ async fn verify_hash(
     let (mut parts, body) = req.into_parts();
     let bytes = to_bytes(body, 1024 * 1024).await.unwrap();
 
-    let host = auth::verify::get_sender_host(&sig).unwrap();
+    let hostname = auth::verify::get_sender_host(&sig).unwrap();
+
+    let Some(host) = ctx.federation.config.hosts.get(hostname) else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
 
     auth::verify::verify_challenge(
         &sig,
-        ctx.federation.config.hosts[host].pubkey.trim(),
+        host.pubkey.trim(),
         &ChallengePayload {
-            host,
+            host: hostname,
             method: &parts.method,
             path_name: uri.path(),
             query: uri.query(),
@@ -52,7 +56,7 @@ async fn verify_hash(
         },
     ).unwrap();
 
-    parts.extensions.insert(IrisHost(host.to_string()));
+    parts.extensions.insert(IrisHost(hostname.to_string()));
 
     Ok(next.run(Request::from_parts(parts, Body::from(bytes))).await)
 }

@@ -5,23 +5,18 @@ use axum::{
 };
 
 use crate::{
-    Context, federation::{api::IrisHost, extractor::IrisSignature}, infra::api::types::{ClientError, SuccessfulResponse, success}, model::Identifier
+    Context, federation::{api::IrisHost, protocol}, infra::api::types::{ClientError, SuccessfulResponse, success}
 };
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub struct ListFederatedPhotoResponse {
-    photos: Vec<String>,
-}
 
 /// Get a photo's meta
 ///
 /// This is a new field. This initially returns implemented error.
 #[utoipa::path(
     get,
-    path = "/photos",
+    path = crate::path!(protocol::ListFederatedPhoto),
     params(),
     responses(
-        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<ListFederatedPhotoResponse>),
+        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<protocol::ListFederatedPhotoResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
@@ -38,7 +33,7 @@ pub async fn list(
 
     (
         StatusCode::OK,
-        Json(success(ListFederatedPhotoResponse { photos })),
+        Json(success(protocol::ListFederatedPhotoResponse { photos })),
     )
         .into_response()
 }

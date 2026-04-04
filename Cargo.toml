@@ -35,3 +35,4 @@ reqwest-middleware = { version = "0.5.1", features = ["json"] }
 http = "1.4.0"
 async-trait = "0.1.89"
 ed25519-dalek = { version = "2.2.0", features = ["pem"] }
+urlencoding = "2.1.3"

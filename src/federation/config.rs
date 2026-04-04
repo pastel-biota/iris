@@ -8,5 +8,5 @@ pub struct FederationConfig {
 #[derive(Debug, serde::Deserialize)]
 pub struct FederationHost {
     pub pubkey: String,
-    origin: String,
+    pub origin: String,
 }
