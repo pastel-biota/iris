@@ -1,7 +1,6 @@
 pub mod ingest;
 pub mod middleware;
 pub mod types;
-pub mod federation;
 
 use std::sync::Arc;
 
@@ -28,7 +27,6 @@ pub async fn run(
 
     let (router, openapi) = OpenApiRouter::new()
         .nest("/photos", ingest::route::photo_route(ctx.clone()))
-        .nest("/federation", federation::route::federation_route(ctx.clone()))
         .split_for_parts();
 
     let router = router

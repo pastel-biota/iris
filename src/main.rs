@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    api::{federation::FederationContext, ingest::{
+    api::{ingest::{
         IngestContext, technicals::image::ServiceContext
     }}, config::parse_config, event::{EventSender, create_event_bus}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
 };
@@ -23,7 +23,6 @@ pub struct Context {
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
-    pub federation: FederationContext,
 }
 
 #[tokio::main]
@@ -61,7 +60,6 @@ async fn run() -> Result<(), anyhow::Error> {
         service: ServiceContext::try_from_config(&config)?,
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
-        federation: FederationContext::new(config.federation),
         event_tx,
     });
 
