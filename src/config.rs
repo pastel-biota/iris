@@ -11,9 +11,54 @@ use crate::{
 };
 
 #[derive(clap::Parser)]
-pub struct Args {
+struct Args {
+    #[clap(subcommand)]
+    command: SubCommands,
+
+    #[clap(flatten)]
+    config: CommonOptions,
+}
+
+#[derive(Clone, clap::Subcommand)]
+enum SubCommands {
+    Server {
+        #[clap(flatten)]
+        config: CommonOptions,
+    },
+    User {
+        #[clap(flatten)]
+        config: CommonOptions,
+
+        #[clap(flatten)]
+        user: UserConfig,
+    },
+}
+
+#[derive(Clone, Debug, clap::Args)]
+pub struct UserConfig {
+    #[clap(short, long)]
+    pub name: String,
+}
+
+#[derive(Clone, clap::Args)]
+struct CommonOptions {
     #[clap(short, long)]
     configs: Option<Vec<String>>,
+}
+
+impl CommonOptions {
+    pub fn merge(self, other: Self) -> Self {
+        let configs = match (self.configs, other.configs) {
+            (Some(mut left), Some(right)) => {
+                left.extend(right);
+                Some(left)
+            },
+            (Some(one), None) | (None, Some(one)) => Some(one),
+            (None, None) => None,
+        };
+
+        Self { configs }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,12 +76,31 @@ pub struct BaseConfig {
     pub host: String,
 }
 
-pub fn parse_config() -> anyhow::Result<Config> {
-    let args = Args::parse();
+#[derive(Debug)]
+pub struct Entry {
+    pub config: Config,
+    pub command: Command,
+}
+
+#[derive(Clone, Debug)]
+pub enum Command {
+    Server,
+    User(UserConfig),
+} 
+
+pub fn parse_config() -> anyhow::Result<Entry> { let args = Args::parse();
+    let (command, config) = match args.command {
+        SubCommands::Server { config } => {
+            (Command::Server, config)
+        },
+        SubCommands::User { config, user } => {
+            (Command::User(user), config)
+        }
+    };
 
     let mut builder = ConfigLoad::builder();
 
-    if let Some(configs) = args.configs {
+    if let Some(configs) = args.config.merge(config).configs {
         for config in configs {
             builder = builder.add_source(config::File::with_name(&config));
         }
@@ -44,12 +108,14 @@ pub fn parse_config() -> anyhow::Result<Config> {
         builder = builder.add_source(config::File::with_name("iris.toml"))
     }
 
-    builder
+    let config = builder
         .add_source(config::Environment::with_prefix("IRIS_CONFIG"))
         .build()
         .context("The config could not be read")?
         .try_deserialize()
         .context(
             "The config was found, but could not parse as the TOML, or the valid config object",
-        )
+        )?;
+
+    Ok(Entry { config, command })
 }

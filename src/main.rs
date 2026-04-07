@@ -4,10 +4,11 @@ use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    config::{BaseConfig, parse_config}, event::{EventSender, create_event_bus}, federation::context::FederationContext, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
+    config::{BaseConfig, Entry, parse_config}, entry::server::RunServerResourcees, event::{EventSender, create_event_bus}, federation::context::FederationContext, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
 };
 
 pub mod config;
+pub mod entry;
 pub mod event;
 pub mod federation;
 pub mod infra;
@@ -17,6 +18,7 @@ pub mod processor;
 pub mod repository;
 pub mod services;
 pub mod util;
+pub mod auth;
 
 pub struct Context {
     pub base: BaseConfig,
@@ -55,7 +57,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), anyhow::Error> {
-    let config = parse_config()?;
+    let Entry { command, config } = parse_config()?;
     let (event_tx, event_rx) = create_event_bus(64);
 
     let ctx = Arc::new(Context {
@@ -68,10 +70,15 @@ async fn run() -> Result<(), anyhow::Error> {
         event_tx,
     });
 
-    tokio::try_join!(
-        async { tokio::spawn(infra::api::run(ctx.clone())).await.unwrap() },
-        async { tokio::spawn(processor::run(ctx.clone(), event_rx)).await.unwrap() },
-    ).unwrap();
+    match command {
+        config::Command::Server => {
+            let resources = RunServerResourcees { ctx, event_rx };
+            entry::server::run_server(resources).await?;
+        },
+        config::Command::User(user_config) => {
+            entry::user::create_user(ctx, user_config).await?;
+        },
+    } 
 
     Ok(())
 }
