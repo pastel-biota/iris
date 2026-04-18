@@ -199,6 +199,14 @@ pub enum PhotoOrigin {
 } 
 
 impl PhotoOrigin {
+    pub fn local(&self) -> bool {
+        matches!(self, PhotoOrigin::Local(_))
+    }
+
+    pub fn federated(&self) -> bool {
+        matches!(self, PhotoOrigin::Federated { .. })
+    }
+
     pub fn local_id(&self) -> Option<&LocalIdentifier> {
         match self {
             Self::Local(id) => Some(id),

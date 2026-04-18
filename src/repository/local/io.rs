@@ -196,9 +196,12 @@ impl PathsForPhoto {
         self.base_dir.join(format!("{}-meta.json", self.id))
     }
 
+    pub fn for_image_dir(&self) -> PathBuf {
+        self.base_dir.join(self.id.to_string())
+    }
+
     pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {
-        self.base_dir
-            .join(self.id.to_string())
+        self.for_image_dir()
             .join(format!("{}-{}.{}", self.id, img_id, ext))
     }
 

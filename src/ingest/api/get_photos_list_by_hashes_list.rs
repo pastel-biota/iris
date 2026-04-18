@@ -3,11 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
-    Context,
-    ingest::api::scheme::PhotoReferenceSchema,
-    infra::api::types::{
+    Context, auth::extractor::IrisSession, infra::api::types::{
         ClientError, SuccessfulResponse, client_error, success,
-    },
+    }, ingest::api::scheme::PhotoReferenceSchema
 };
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -35,18 +33,23 @@ pub struct GetPhotosListByHashesListResponse<'a> {
 /// Get photos list by hashes list
 ///
 /// Retrieves the list of photos from the list of hashes.
+/// You need to be logged in to use this endpoint.
 #[utoipa::path(
     post,
-    // TODO: Replace with the correct path - use {xxx} to accept path parameter
     path = "/by-hashes",
+    security(
+        ("session_header" = []),
+        ("session_cookie" = [])
+    ),
     request_body(content_type = "application/json", content = GetPhotosListByHashesListParam),
     responses(
-        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<GetPhotosListByHashesListResponse>),
+        (status = OK, description = "Found photos. If no photo is found, the endpoint will return 200 OK with an empty array.", body = SuccessfulResponse<GetPhotosListByHashesListResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
 pub async fn get_photos_list_by_hashes_list(
     State(ctx): State<Arc<Context>>,
+    IrisSession(_): IrisSession,
     Json(param): Json<GetPhotosListByHashesListParam>,
 ) -> impl IntoResponse {
     let mut registry = ctx.registry.write().await;

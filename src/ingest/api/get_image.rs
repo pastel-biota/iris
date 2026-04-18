@@ -18,7 +18,6 @@ use crate::{
 /// Retrieves the actual image binary payload.
 #[utoipa::path(
     get,
-    // TODO: Replace with the correct path - use {xxx} to accept path parameter
     path = "/{photo_id}/images/{image_id}",
     params(
         ("photo_id" = String, Path),

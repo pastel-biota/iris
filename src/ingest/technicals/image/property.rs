@@ -56,6 +56,7 @@ pub struct HideLocation(HideLocationConfig);
 
 #[derive(Debug, serde::Deserialize)]
 pub struct HideLocationConfig {
+    #[serde(default)]
     latlngs: Vec<(f64, f64)>,
 }
 
@@ -76,10 +77,7 @@ impl PropertyProcessor for HideLocation {
             tracing::trace!("{:?} v. {:?} = {}", masked_location, lat_lng, dist);
             dist <= 0.03
         }) {
-            tracing::info!(
-                "This location was hidden when registeration: {:?}",
-                properties.gps_lat_lng
-            );
+            tracing::info!("The location was hidden when importing");
             properties.gps_lat_lng = None;
         } else {
             tracing::debug!(
@@ -92,11 +90,19 @@ impl PropertyProcessor for HideLocation {
     }
 
     fn with_config(config: Self::Config) -> Result<Self, anyhow::Error> {
-        tracing::info!("These location will be hidden if it's nearby (~ 0.03 degs)");
-        config.latlngs.iter().for_each(|(lat, lng)| {
-            tracing::info!("  - {lat}, {lng}");
-        });
-        tracing::warn!("Loction is hidden ONLY AT REGISTERATION - reimport when this changed");
+        if config.latlngs.is_empty() {
+            tracing::info!(
+                indoc::indoc! {"No location is configured to be hidden.
+                You can configure the location to be hidden using \"hide_locations\" key in [processors.{}]."},
+                Self::CONFIG_KEY
+            );
+        } else {
+            tracing::info!(
+                indoc::indoc! {"{} location(s) will be masked.
+                REPROCESS THE PHOTO IF YOU CHANGED THE LOCATION - already imported properties will not be reprocessed"},
+                config.latlngs.len()
+            );
+        }
 
         tracing::debug!("Detailed message will be reported");
 

@@ -29,7 +29,7 @@ struct GetImagesListResponse {
     photos: Vec<PhotoReferenceSchema>,
 }
 
-/// Get the list of images.
+/// Get registered photos' list
 #[utoipa::path(
     get,
     path = "/",
@@ -38,7 +38,7 @@ struct GetImagesListResponse {
         ("size" = Option<u32>, Query, nullable, description = "the default is 50"),
     ),
     responses(
-        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<GetImagesListResponse>),
+        (status = OK, description = "The list of images.", body = SuccessfulResponse<GetImagesListResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]

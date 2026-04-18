@@ -49,6 +49,20 @@ impl AllImageIndexEntryV1 {
 
         Ok(months)
     }
+
+    fn iterate_photo_in_month(&mut self, year: i32, month: u32) -> &mut Vec<PhotoReference> {
+        self.pics
+            .entry(year.to_string())
+            .or_insert(HashMap::new())
+            .entry(month.to_string())
+            .or_insert(vec![])
+    }
+
+    fn iterate_all_images(&mut self) -> impl Iterator<Item = &mut Vec<PhotoReference>> {
+        self.pics
+            .values_mut()
+            .flat_map(|year| year.values_mut())
+    }
 }
 
 impl AllImageIndex {
@@ -170,6 +184,35 @@ impl AllImageIndex {
         let images = month_image.chain(following_images);
 
         Ok(images.take(size).cloned().collect())
+    }
+
+    pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<PhotoReference> {
+        let AllImageIndexEntry::V1(index) = self.load()?;
+
+        let mut result: Option<anyhow::Result<PhotoReference>> = None;
+        let reference = index
+            .iterate_photo_in_month(photo_id.year, photo_id.month)
+            .retain(|photo| {
+                // element returning false is removed
+
+                if result.is_some() {
+                    return true;
+                }
+
+                if photo.id() != photo_id {
+                    return true;
+                }
+
+                if photo.origin.federated() {
+                    result = Some(Err(anyhow::anyhow!("The photo was found but it is federated. You need to remove it from the authority")));
+                    return true;
+                }
+
+                result = Some(Ok(photo.clone()));
+                return false;
+            });
+
+        result.unwrap_or(Err(anyhow::anyhow!("The photo was not found")))
     }
 
     fn load(&mut self) -> anyhow::Result<&mut AllImageIndexEntry> {

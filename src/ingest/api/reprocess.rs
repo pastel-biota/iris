@@ -9,20 +9,23 @@ use axum::{
 use image::ImageReader;
 
 use crate::{
-    Context,
-    infra::api::types::{SuccessfulResponse, client_error, success},
-    model::Identifier,
+    Context, auth::extractor::IrisSession, infra::api::types::{SuccessfulResponse, client_error, success}, model::Identifier
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ReprocessResponse;
 
+/// Reprocess the photo
+///
 /// Reprocess the photos. This fills up the missing images.
+/// You need to be logged in to use this endpoint.
 #[utoipa::path(
     put,
     path = "/{photo_id}/images",
-    params(
-        ("photo_id" = String, Path),
+    params(("photo_id" = String, Path)),
+    security(
+        ("session_header" = []),
+        ("session_cookie" = [])
     ),
     responses(
         (status = CREATED, description = "The photo had unprocessed image(s) and was created", body = SuccessfulResponse<ReprocessResponse>),
@@ -31,6 +34,7 @@ pub struct ReprocessResponse;
 )]
 pub async fn reprocess(
     State(ctx): State<Arc<Context>>,
+    _: IrisSession, 
     Path((photo_id,)): Path<(String,)>,
 ) -> impl IntoResponse {
     let Ok(photo_id) = photo_id.parse::<Identifier>() else {

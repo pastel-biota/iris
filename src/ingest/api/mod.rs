@@ -1,3 +1,4 @@
+mod delete;
 mod get_image;
 mod get_images_list;
 mod get_photo_meta;
@@ -12,8 +13,9 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::Context;
 
-pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
+pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter<Arc<Context>> {
     OpenApiRouter::new()
+        .routes(routes!(delete::delete))
         .routes(routes!(new_photo::new_photo))
         .routes(routes!(get_photo_meta::get_photo_meta))
         .routes(routes!(get_image::get_image))
@@ -22,6 +24,5 @@ pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter {
             get_photos_list_by_hashes_list::get_photos_list_by_hashes_list
         ))
         .routes(routes!(reprocess::reprocess))
-        .with_state(ctx)
 }
 

@@ -1,7 +1,7 @@
 ---
 name: 'new-route'
-root: 'src/route'
-output: '.'
+root: 'src'
+output: '*/api'
 questions:
   name: 'Please enter the handler name.'
 ---
@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, route::{ClientError, SuccessfulResponse, client_error, success}};
+use crate::{Context, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}};
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
 pub struct {{ inputs.name | pascal }}Param {

@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf}, process::id,
 };
 
-use anyhow::{Context as _};
+use anyhow::{Context as _, bail};
 
 use crate::{
     model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::photo_index::PhotoIndexProvider,
@@ -112,6 +112,22 @@ impl OriginalSha256Index {
             .iter()
             .flat_map(|hash| index.pics.get(hash).map(|photo| (hash.as_str(), photo)))
             .collect::<HashMap<_, _>>())
+    }
+
+    pub fn delete_photo(&mut self, id: &Identifier, hash: &str) -> anyhow::Result<()> {
+        let IndexEntry::V1(index) = self.load_mut()?;
+
+        let photo = index.pics
+            .get(hash)
+            .expect("TBI - The photo was found in the all index but the photo with the found has is not found in the hash index");
+
+        if photo.id() != id {
+            bail!("The photo with the found hash was found but it is not the right photo: (requested) {} !=  (found) {}", id, photo.id())
+        }
+
+        index.pics.remove(hash).expect("Just checked above");
+
+        Ok(())
     }
 
     fn load_mut(&mut self) -> anyhow::Result<&mut IndexEntry> {

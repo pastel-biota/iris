@@ -175,4 +175,15 @@ impl PhotoStorageRegistry {
 
         Ok(meta)
     }
+
+    pub fn unregister(
+        &mut self,
+        photo_id: &Identifier,
+    ) -> anyhow::Result<()> {
+        let Some(photo_ref) = self.index.get_photo_ref(photo_id)? else {
+            anyhow::bail!("The photo with id {photo_id} is not found");
+        };
+
+        self.index.delete_photo(photo_id)
+    }
 }

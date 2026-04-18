@@ -20,8 +20,6 @@ pub struct GetPhotoMetaResponse {
 }
 
 /// Get a photo's meta
-///
-/// This is a new field. This initially returns implemented error.
 #[utoipa::path(
     get,
     path = "/{photo_id}",
@@ -29,7 +27,7 @@ pub struct GetPhotoMetaResponse {
         ("photo_id" = String, Path),
     ),
     responses(
-        (status = OK, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<GetPhotoMetaResponse>),
+        (status = OK, description = "A found photo's metadata information.", body = SuccessfulResponse<GetPhotoMetaResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]

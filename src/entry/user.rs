@@ -1,30 +1,46 @@
-use std::sync::Arc;
+use std::{io::Write as _, sync::Arc};
 
-use crate::{Context, config::UserConfig};
+use crate::{Context, config::UserOptions};
 
-pub async fn create_user(ctx: Arc<Context>, user: UserConfig) -> anyhow::Result<()> {
-    let password = loop {
-        let password = rpassword::prompt_password(format!("Please type a password for the new user '{}': ", user.name))?;
+pub async fn create_user(ctx: Arc<Context>, user: UserOptions) -> anyhow::Result<()> {
+    let config_file = user.write_to_file.unwrap();
 
-        if password.trim().len() != password.len() {
-            println!("[!] The password contains trailing space characters");
-            continue;
-        }
+    if !config_file.is_file() {
+        anyhow::bail!("The specified path is not a valid file, or does not exist");
+    }
 
-        if password.is_empty() {
-            println!("[!] You need to type non-empty password");
-            continue;
-        }
+    if ctx.auth.config.entities.contains_key(&user.name) {
+        println!("[!] There is already a user with the name '{}'", user.name);
+        return Ok(());
+    }
 
-        if user.name == password {
-            println!("[!] You cannot use the same password to the username");
-            continue;
-        }
+    println!();
+    println!("This utility is going to modify the file at following");
+    println!("       Arg: '{}'", config_file.display());
+    println!("  Location: '{}'", std::fs::canonicalize(&config_file)?.display());
+    println!();
+    println!("The hashed password will be recorded to the path above.");
+    println!();
+    println!("Please make sure that the file is...");
+    println!("  * Intended to store the sensitive information, such as being stored at Secret");
+    println!("  * Has the proper permission configuration");
+    println!();
+    println!("\x1b[38;5;3;1mThe message above is very important! Please read before proceed.\x1b[m");
+    println!();
 
-        break password
-    };
+    let password = crate::auth::password::accept_password_from_cli(&user.name)?;
 
-    dbg!(password);
+    let new_user_config = crate::auth::serialize::serialize_new_user(&user.name, password)?;
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(config_file)?;
+
+    file.write_all("\n".as_bytes())?;
+    file.write_all(new_user_config.as_bytes())?;
+    file.write_all("\n".as_bytes())?;
+
+    println!("The hashed password is recorded to the file!");
 
     Ok(())
 }

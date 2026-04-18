@@ -41,7 +41,7 @@ pub fn client_error(reason: &str) -> ClientError {
 }
 
 #[derive(ToSchema)]
-#[schema(value_type = String, format = Binary)]
+#[schema(value_type = String, format = Binary, example = "<Binary Data>")]
 pub struct BinaryBody(Vec<u8>);
 
 impl Deref for BinaryBody {

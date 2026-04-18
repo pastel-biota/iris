@@ -71,6 +71,13 @@ impl PhotoIndex {
             .get_photos_list_from_hashes_list(hash)
     }
 
+    pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<()> {
+        let photo = self.all_index.delete_photo(photo_id)?;
+        self.hash_index.delete_photo(photo_id, &photo.hash)?;
+
+        Ok(())
+    }
+
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
         self.all_index.total_count()
     }

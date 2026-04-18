@@ -9,20 +9,15 @@ use axum::{
 };
 
 use crate::{
-    Context,
-    ingest::{
+    Context, auth::extractor::IrisSession, event::Event, infra::api::types::{
+        BinaryBody, ClientError, SuccessfulResponse, client_error, success,
+    }, ingest::{
         api::scheme::PhotoScheme,
         technicals::image::{
             process::{get_hash, process_image},
             property::process_properties,
         },
-    },
-    infra::api::types::{
-        BinaryBody, ClientError, SuccessfulResponse, client_error, success,
-    },
-    event::Event,
-    model::Identifier,
-    repository::registry::NewPhotoParam,
+    }, model::Identifier, repository::registry::NewPhotoParam,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -34,18 +29,32 @@ pub const MAX_BODY: usize = 100 * 1024 * 1024;
 
 /// Registers a new photo
 ///
-/// Register a new photo, and prepare for the upload for the actual image.
+/// Upload a photo payload and register. This triggers the image processing.
+/// Note that the response from this endpoint does not guarantee (and practically does not mean)
+/// that the image has been generated. However representative_rgb is available, and the client can
+/// use this value to show the placeholder for the uploaded photo, until the image is being
+/// processed.
+///
+/// You need to be logged in to use this endpoint.
 #[utoipa::path(
     post,
     path = "/",
+    security(
+        ("session_header" = []),
+        ("session_cookie" = [])
+    ),
     request_body(content = BinaryBody, content_type = "application/octet-stream"),
     responses(
-        (status = CREATED, description = "The photo was registered and ready for image upload.", body = SuccessfulResponse<NewPhotoResponse>),
+        (status = CREATED, description = "The photo was registered and the image processing was queued.", body = SuccessfulResponse<NewPhotoResponse>),
         (status = CONFLICT, description = "There already was a photo registered with the matching hash", body = ClientError),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
     )
 )]
-pub async fn new_photo(State(ctx): State<Arc<Context>>, body: Body) -> impl IntoResponse {
+pub async fn new_photo(
+    State(ctx): State<Arc<Context>>,
+    IrisSession(_): IrisSession,
+    body: Body
+) -> impl IntoResponse {
     let bytes = to_bytes(body, MAX_BODY).await.unwrap();
 
     if bytes.len() == MAX_BODY {

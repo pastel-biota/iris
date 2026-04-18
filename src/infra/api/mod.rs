@@ -1,15 +1,18 @@
 pub mod middleware;
 pub mod types;
+pub mod openapi;
 
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use axum::{http::StatusCode, routing::get};
+use axum::{Extension, http::StatusCode, routing::get};
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
 use utoipa_redoc::{Redoc, Servable as _};
+
+use crate::infra::api::openapi::finalize_openapi;
 
 pub async fn run(
     ctx: Arc<crate::Context>,
@@ -24,10 +27,17 @@ pub async fn run(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let (router, openapi) = OpenApiRouter::new()
-        .nest("/photos", crate::ingest::api::photo_route(ctx.clone()))
-        .nest("/federation", crate::federation::api::federation_route(ctx.clone()))
+    let router = OpenApiRouter::<Arc<crate::Context>>::new()
+        .nest("/auth", crate::auth::api::auth_route(ctx.clone()))
+        .nest("/photos", crate::ingest::api::photo_route(ctx.clone()));
+
+    #[cfg(feature = "federation")]
+    let router = router.nest("/federation", crate::federation::api::federation_route(ctx.clone()));
+
+    let (router, openapi) = router
+        .with_state(ctx.clone())
         .split_for_parts();
+    let openapi = finalize_openapi(openapi);
 
     let router = router
         .route(
@@ -42,7 +52,8 @@ pub async fn run(
             tower::ServiceBuilder::new()
                 .layer(CorsLayer::permissive().allow_origin(cors_origin))
                 .layer(axum::middleware::from_fn(middleware::access_log))
-        );
+        )
+        .layer(Extension(ctx.clone()));
 
     tracing::info!("Iris will be serving at http://{}", &ctx.ingest.config.listen);
 

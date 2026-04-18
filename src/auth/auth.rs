@@ -1,0 +1,36 @@
+use crate::auth::{config::Entity, context::AuthContext, password::Password, session::Session};
+
+#[derive(thiserror::Error, Debug)]
+pub enum LoginError {
+    #[error("The username or password is not correct")]
+    InvalidCredential,
+
+    #[error(transparent)]
+    GenericError(#[from] anyhow::Error),
+}
+
+pub async fn login_to_user(ctx: &AuthContext, username: &str, password: &Password) -> Result<String, LoginError> {
+    let entity = ctx.config.entities.get(username);
+    let user = match entity {
+        Some(Entity::User(user)) => Some(user),
+        _ => None
+    };
+
+    if !super::password::verify_password(&password, user.map(|user| &user.password))? {
+        return Err(LoginError::InvalidCredential);
+    }
+
+    let session_key = ctx.state.lock()
+        .unwrap()
+        .sessions
+        .new_session(Entity::User(user.unwrap().clone()))?;
+
+    Ok(session_key)
+}
+
+pub async fn verify_session(ctx: &AuthContext, session_key: &str) -> anyhow::Result<Option<Session>> {
+    ctx.state.lock()
+        .unwrap()
+        .sessions
+        .get_session(session_key)
+}

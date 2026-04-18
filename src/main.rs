@@ -4,13 +4,21 @@ use tokio::sync::RwLock;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    config::{BaseConfig, Entry, parse_config}, entry::server::RunServerResourcees, event::{EventSender, create_event_bus}, federation::context::FederationContext, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::registry::PhotoStorageRegistry
+    auth::context::AuthContext,
+    config::{BaseConfig, Entry, parse_config},
+    entry::server::RunServerResourcees,
+    event::{EventSender, create_event_bus},
+    ingest::context::{IngestContext, ServiceContext},
+    processor::ProcessorContext,
+    repository::registry::PhotoStorageRegistry
 };
+
+#[cfg(feature = "federation")]
+use crate::federation::context::FederationContext;
 
 pub mod config;
 pub mod entry;
 pub mod event;
-pub mod federation;
 pub mod infra;
 pub mod ingest;
 pub mod model;
@@ -20,13 +28,19 @@ pub mod services;
 pub mod util;
 pub mod auth;
 
+#[cfg(feature = "federation")]
+pub mod federation;
+
 pub struct Context {
     pub base: BaseConfig,
+    pub auth: AuthContext,
     pub ingest: IngestContext,
     pub registry: RwLock<PhotoStorageRegistry>,
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
+
+    #[cfg(feature = "federation")]
     pub federation: FederationContext,
 }
 
@@ -63,9 +77,13 @@ async fn run() -> Result<(), anyhow::Error> {
     let ctx = Arc::new(Context {
         registry: RwLock::new(PhotoStorageRegistry::new(&config.ingest.dir)),
         service: ServiceContext::try_from_config(&config)?,
-        federation: FederationContext::new(&config.ingest.dir, config.federation),
+        auth: AuthContext::new(config.auth),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
+
+        #[cfg(feature = "federation")]
+        federation: FederationContext::new(&config.ingest.dir, config.federation),
+
         base: config.base,
         event_tx,
     });

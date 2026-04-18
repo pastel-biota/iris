@@ -1,14 +1,16 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use clap::Parser;
 use config::Config as ConfigLoad;
 use serde::Deserialize;
 
 use crate::{
-    ingest::config::IngestConfig,
-    ingest::technicals::image::property::PropertyConfig,
-    processor::config::ImageProcessConfig,
-    federation::config::FederationConfig,
+    auth::config::AuthConfig, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, processor::config::ImageProcessConfig
 };
+
+#[cfg(feature = "federation")]
+use crate::federation::config::FederationConfig;
 
 #[derive(clap::Parser)]
 struct Args {
@@ -30,14 +32,28 @@ enum SubCommands {
         config: CommonOptions,
 
         #[clap(flatten)]
-        user: UserConfig,
+        user: UserOptions,
     },
 }
 
 #[derive(Clone, Debug, clap::Args)]
-pub struct UserConfig {
+#[command(group(
+    clap::ArgGroup::new("output")
+        .required(true)
+        .multiple(false)
+        .args(["write_to_file", "write_to_stdout"]),
+))]
+pub struct UserOptions {
     #[clap(short, long)]
     pub name: String,
+
+    /// The file of the configuration file to be written
+    #[clap(short = 'w', long)]
+    pub write_to_file: Option<PathBuf>,
+
+    /// The file of the configuration file to be written
+    #[clap(short = 'W', long)]
+    pub write_to_stdout: bool,
 }
 
 #[derive(Clone, clap::Args)]
@@ -65,9 +81,13 @@ impl CommonOptions {
 pub struct Config {
     #[serde(flatten)]
     pub base: BaseConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
     pub ingest: IngestConfig,
     pub processors: PropertyConfig,
     pub image: ImageProcessConfig,
+
+    #[cfg(feature = "federation")]
     pub federation: FederationConfig,
 }
 
@@ -85,7 +105,7 @@ pub struct Entry {
 #[derive(Clone, Debug)]
 pub enum Command {
     Server,
-    User(UserConfig),
+    User(UserOptions),
 } 
 
 pub fn parse_config() -> anyhow::Result<Entry> { let args = Args::parse();

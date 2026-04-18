@@ -10,11 +10,10 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{Context, federation::{auth::{self, ChallengePayload}, extractor::IrisSignature, protocol::{self, Endpoint as _}}};
 
-pub fn federation_route(ctx: Arc<Context>) -> OpenApiRouter {
+pub fn federation_route(ctx: Arc<Context>) -> OpenApiRouter<Arc<crate::Context>> {
     OpenApiRouter::new()
         .routes(routes!(ping::ping))
         .routes(routes!(list::list))
-        .with_state(ctx.clone())
         .route_layer(middleware::from_fn_with_state(ctx, verify_hash))
 }
 
