@@ -185,7 +185,6 @@ impl From<PhotoMeta> for PhotoReference {
             images: value
                 .images
                 .into_iter()
-                .map(|(k, v)| (k, v.into()))
                 .collect(),
             shot_time: value.shot_time,
             representative_rgb: value.representative_rgb,
@@ -227,7 +226,7 @@ impl PhotoOrigin {
 
     pub fn federator(&self) -> Option<&str> {
         match self {
-            Self::Local(id) => None,
+            Self::Local(_) => None,
             Self::Federated { federator, .. } => Some(federator),
         }
     }

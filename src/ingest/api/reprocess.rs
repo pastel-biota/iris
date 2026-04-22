@@ -64,7 +64,7 @@ pub async fn reprocess(
         }
     };
 
-    let Some(photo) = photo else {
+    let Some(_photo) = photo else {
         return (
             StatusCode::NOT_FOUND,
             Json(client_error("the photo with the ID is not found")),
@@ -92,7 +92,7 @@ pub async fn reprocess(
 
     tracing::debug!("Image was read. Decoding");
 
-    let original_photo = ImageReader::new(Cursor::new(original_photo))
+    let _original_photo = ImageReader::new(Cursor::new(original_photo))
         .with_guessed_format()
         .unwrap()
         .decode()

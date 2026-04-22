@@ -1,3 +1,8 @@
+// This module is a boundary between CLI / TOML and the rest of the app.
+// Raw `PathBuf` is needed here for argument parsing and deserialization;
+// paths cross into `ScopedPath` at the point they are used for I/O.
+#![allow(clippy::disallowed_types)]
+
 use std::path::PathBuf;
 
 use anyhow::Context;

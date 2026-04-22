@@ -1,12 +1,11 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
 
 use crate::{
     model::{Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, PhotoReference, Properties}, repository::{
-        io::PhotoStorageDirectory,
-        photo_index::PhotoIndex,
+        io::ScopedPath, local::io::PhotoStorageDirectory, photo_index::PhotoIndex
     }
 };
 
@@ -25,7 +24,7 @@ pub struct NewPhotoParam {
 }
 
 impl PhotoStorageRegistry {
-    pub fn new(base_dir: &Path) -> Self {
+    pub fn new(base_dir: &ScopedPath) -> Self {
         PhotoStorageRegistry {
             dir: PhotoStorageDirectory::new(base_dir),
             index: PhotoIndex::new(base_dir),
@@ -57,6 +56,11 @@ impl PhotoStorageRegistry {
     }
 
     pub fn load_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
+        let Some(photo) = self.dir.load_photo_meta(&LocalIdentifier(id.clone()))? else {
+            return Ok(None);
+        };
+        return Ok(Some(photo));
+
         let Some(photo_ref) = self.index.get_photo_ref(id)? else {
             return Ok(None);
         };
@@ -142,7 +146,7 @@ impl PhotoStorageRegistry {
             anyhow::bail!("You cannot update the original image of non-local (federated) photo");
         };
 
-        self.dir.upload_original_image(&local_id, ext, content).await?;
+        self.dir.upload_original_image(local_id, ext, content).await?;
 
         Ok(())
     }
@@ -180,7 +184,7 @@ impl PhotoStorageRegistry {
         &mut self,
         photo_id: &Identifier,
     ) -> anyhow::Result<()> {
-        let Some(photo_ref) = self.index.get_photo_ref(photo_id)? else {
+        if self.index.get_photo_ref(photo_id)?.is_none() {
             anyhow::bail!("The photo with id {photo_id} is not found");
         };
 

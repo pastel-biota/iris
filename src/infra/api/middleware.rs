@@ -3,7 +3,7 @@ use tracing::Instrument;
 
 pub async fn access_log(req: Request, next: Next) -> Response {
     let access_id = (0..6)
-        .map(|_| ('a' as u8 + (rand::random::<u8>() % 26)) as char)
+        .map(|_| (b'a' + (rand::random::<u8>() % 26)) as char)
         .collect::<String>();
 
     let span = tracing::debug_span!("request", id = access_id);

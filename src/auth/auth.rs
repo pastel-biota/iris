@@ -16,7 +16,7 @@ pub async fn login_to_user(ctx: &AuthContext, username: &str, password: &Passwor
         _ => None
     };
 
-    if !super::password::verify_password(&password, user.map(|user| &user.password))? {
+    if !super::password::verify_password(password, user.map(|user| &user.password))? {
         return Err(LoginError::InvalidCredential);
     }
 

@@ -1,0 +1,8 @@
+disallowed-types = [
+  { path = "std::path::Path", reason = "use `ScopedPath` instead.\nScopedPath verifies that the accessed path is at the trusted directory" },
+  { path = "std::path::PathBuf", reason = "use `ScopedPath` instead.\nScopedPath verifies that the accessed path is at the trusted directory" },
+]
+disallowed-names = [
+  "std::fs",
+  "std::path",
+]

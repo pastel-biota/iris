@@ -1,16 +1,12 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::collections::HashMap;
 
 use anyhow::{Context as _, bail};
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta, PhotoReference};
+use crate::{model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::io::ScopedPath};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Debug)]
 pub struct AllImageIndex {
-    path: PathBuf,
+    path: ScopedPath,
     content: Option<AllImageIndexEntry>,
 }
 
@@ -53,22 +49,16 @@ impl AllImageIndexEntryV1 {
     fn iterate_photo_in_month(&mut self, year: i32, month: u32) -> &mut Vec<PhotoReference> {
         self.pics
             .entry(year.to_string())
-            .or_insert(HashMap::new())
+            .or_default()
             .entry(month.to_string())
-            .or_insert(vec![])
-    }
-
-    fn iterate_all_images(&mut self) -> impl Iterator<Item = &mut Vec<PhotoReference>> {
-        self.pics
-            .values_mut()
-            .flat_map(|year| year.values_mut())
+            .or_default()
     }
 }
 
 impl AllImageIndex {
-    pub fn new(path: &Path) -> AllImageIndex {
+    pub fn new(path: &ScopedPath) -> AllImageIndex {
         AllImageIndex {
-            path: path.to_path_buf(),
+            path: path.clone(),
             content: None,
         }
     }
@@ -79,9 +69,9 @@ impl AllImageIndex {
         let month_pics = index
             .pics
             .entry(photo.id().year.to_string())
-            .or_insert(HashMap::new())
+            .or_default()
             .entry(photo.id().month.to_string())
-            .or_insert(vec![]);
+            .or_default();
 
         if month_pics
             .iter()
@@ -123,7 +113,7 @@ impl AllImageIndex {
 
         photo
             .images
-            .insert(image_id.to_string(), image.clone().into());
+            .insert(image_id.to_string(), image.clone());
 
         self.save()?;
 
@@ -190,7 +180,7 @@ impl AllImageIndex {
         let AllImageIndexEntry::V1(index) = self.load()?;
 
         let mut result: Option<anyhow::Result<PhotoReference>> = None;
-        let reference = index
+        index
             .iterate_photo_in_month(photo_id.year, photo_id.month)
             .retain(|photo| {
                 // element returning false is removed
@@ -209,7 +199,7 @@ impl AllImageIndex {
                 }
 
                 result = Some(Ok(photo.clone()));
-                return false;
+                false
             });
 
         result.unwrap_or(Err(anyhow::anyhow!("The photo was not found")))
@@ -231,31 +221,39 @@ impl AllImageIndex {
             return Ok(());
         }
 
-        let file = File::open(&self.path).context("Failed to open a file for all image index")?;
+        let bytes = self
+            .path
+            .read_binary()
+            .context("Failed to open a file for all image index")?;
 
-        self.content = serde_json::from_reader(file)
+        self.content = serde_json::from_slice(&bytes)
             .context("The all image index contains invalid content")?;
 
         Ok(())
     }
 
     fn save(&mut self) -> anyhow::Result<()> {
-        let mut file =
-            File::create(&self.path).context("Failed to create a file for all image index")?;
+        let bytes = {
+            let entry = self.load()?;
+            serde_json::to_vec_pretty(entry)
+                .context("Failed to serialize the all image index")?
+        };
 
-        serde_json::to_writer_pretty(&mut file, &self.load()?)
-            .context("Failed to write a empty entry for all image index")?;
+        self.path
+            .write(bytes)
+            .context("Failed to write the all image index")?;
 
         Ok(())
     }
 
     fn init(&mut self) -> anyhow::Result<AllImageIndexEntry> {
-        let mut file =
-            File::create(&self.path).context("Failed to create a file for all image index")?;
-
         let value = AllImageIndexEntry::default();
-        serde_json::to_writer_pretty(&mut file, &value)
-            .context("Failed to write a empty entry for all image index")?;
+        let bytes = serde_json::to_vec_pretty(&value)
+            .context("Failed to serialize an empty entry for all image index")?;
+
+        self.path
+            .write(bytes)
+            .context("Failed to create a file for all image index")?;
 
         Ok(value)
     }

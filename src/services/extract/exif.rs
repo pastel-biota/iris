@@ -108,7 +108,7 @@ fn exif_to_image_property(exif: &ExifData) -> anyhow::Result<ExifPayload> {
             machine: machinery(exif, Tag::Make, Tag::Model)?,
             lens: Some(machinery(exif, Tag::LensMake, Tag::LensModel)?),
             orientation: Some(get_orientation(exif)?),
-            gps_lat_lng: gps_lat_lng,
+            gps_lat_lng,
             f_number: Some(f_number),
             shutter_speed: Some(shutter_speed),
             shutter_speed_controlled: Some(shutter_speed_controlled),

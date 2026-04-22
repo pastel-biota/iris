@@ -6,7 +6,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{auth::{auth::LoginError, password::Password}, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}};
 
-pub fn auth_route(ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>> {
+pub fn auth_route(_ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>> {
     OpenApiRouter::new()
         .routes(routes!(login))
 }

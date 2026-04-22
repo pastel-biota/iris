@@ -1,22 +1,19 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::{Context, bail};
 use tokio::{
-    fs::File,
     io::{AsyncRead, AsyncReadExt as _},
     pin,
 };
 
-use crate::model::{ImageMeta, LocalIdentifier, PhotoMeta};
+use crate::{model::{ImageMeta, LocalIdentifier, PhotoMeta}, repository::io::ScopedPath};
 
 pub struct PhotoStorageDirectory {
-    base_dir: PathBuf,
+    base_dir: ScopedPath,
 }
 
 impl PhotoStorageDirectory {
-    pub fn new(base_dir: &Path) -> Self {
+    pub fn new(base_dir: &ScopedPath) -> Self {
         PhotoStorageDirectory {
-            base_dir: base_dir.to_path_buf(),
+            base_dir: base_dir.clone(),
         }
     }
 
@@ -27,7 +24,7 @@ impl PhotoStorageDirectory {
             return Ok(None);
         }
 
-        let file_content = std::fs::read(paths.meta())
+        let file_content = paths.meta().read_binary()
             .with_context(|| format!("Could not read the metafile for {id}"))?;
 
         let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
@@ -44,7 +41,8 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut image_file = File::open(paths.for_image(image_id, &image.extension))
+        let mut image_file = paths.for_image(image_id, &image.extension)
+            .open_file()
             .await
             .context("Failed to open image file")?;
 
@@ -64,7 +62,8 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut image_file = File::open(paths.for_original_image(&image.extension))
+        let mut image_file = paths.for_original_image(&image.extension)
+            .open_file()
             .await
             .context("Failed to open image file")?;
 
@@ -95,7 +94,7 @@ impl PhotoStorageDirectory {
         }
 
         if !paths.base_dir.exists() {
-            std::fs::create_dir_all(&paths.base_dir).with_context(|| {
+            paths.base_dir.create_dir_all().with_context(|| {
                 format!(
                     "Could not create directory '{}' for new photo",
                     &paths.base_dir.display()
@@ -106,7 +105,7 @@ impl PhotoStorageDirectory {
         let meta = serde_json::to_vec_pretty(&meta)
             .context("Could not create the JSON represent for the metafile")?;
 
-        std::fs::write(paths.meta(), meta)
+        paths.meta().write(meta)
             .context("Could not write the metaafile for new photo")?;
 
         Ok(())
@@ -125,7 +124,7 @@ impl PhotoStorageDirectory {
             .load_photo_meta(photo_id)?
             .context("The photo was not found")?;
 
-        let path = paths.for_image(&image_id, &image.extension);
+        let path = paths.for_image(image_id, &image.extension);
         self.write_image(&path, image_data).await?;
 
         meta.images.insert(image_id.to_string(), image.clone());
@@ -133,7 +132,7 @@ impl PhotoStorageDirectory {
         let meta_json = serde_json::to_vec_pretty(&meta)
             .context("Could not create the JSON represent for the metafile")?;
 
-        std::fs::write(paths.meta(), meta_json)
+        paths.meta().write(meta_json)
             .context("Could not write the metaafile for new photo")?;
 
         Ok(meta)
@@ -151,10 +150,10 @@ impl PhotoStorageDirectory {
         self.write_image(&path, image_data).await
     }
 
-    async fn write_image(&self, path: &Path, image_data: impl AsyncRead) -> anyhow::Result<()> {
+    async fn write_image(&self, path: &ScopedPath, image_data: impl AsyncRead) -> anyhow::Result<()> {
         let result = {
-            std::fs::create_dir_all(path.parent().unwrap())?;
-            let mut file = File::create(path)
+            path.parent().unwrap().create_dir_all()?;
+            let mut file = path.create_file()
                 .await
                 .context("Failed to open the image file")?;
 
@@ -166,7 +165,7 @@ impl PhotoStorageDirectory {
         match result {
             Ok(_) => Ok(()),
             Err(err) => {
-                if let Err(err) = tokio::fs::remove_file(path).await {
+                if let Err(err) = path.remove_file().await {
                     eprintln!(
                         "warning: The file could not be removed after the failed write: {err}"
                     );
@@ -178,12 +177,12 @@ impl PhotoStorageDirectory {
 }
 
 struct PathsForPhoto {
-    base_dir: PathBuf,
+    base_dir: ScopedPath,
     id: LocalIdentifier,
 }
 
 impl PathsForPhoto {
-    pub fn from_id(base_dir: &Path, id: &LocalIdentifier) -> Self {
+    pub fn from_id(base_dir: &ScopedPath, id: &LocalIdentifier) -> Self {
         PathsForPhoto {
             base_dir: base_dir
                 .join(format!("{:04}", id.year))
@@ -192,20 +191,20 @@ impl PathsForPhoto {
         }
     }
 
-    pub fn meta(&self) -> PathBuf {
+    pub fn meta(&self) -> ScopedPath {
         self.base_dir.join(format!("{}-meta.json", self.id))
     }
 
-    pub fn for_image_dir(&self) -> PathBuf {
+    pub fn for_image_dir(&self) -> ScopedPath {
         self.base_dir.join(self.id.to_string())
     }
 
-    pub fn for_image(&self, img_id: &str, ext: &str) -> PathBuf {
+    pub fn for_image(&self, img_id: &str, ext: &str) -> ScopedPath {
         self.for_image_dir()
             .join(format!("{}-{}.{}", self.id, img_id, ext))
     }
 
-    pub fn for_original_image(&self, ext: &str) -> PathBuf {
+    pub fn for_original_image(&self, ext: &str) -> ScopedPath {
         self.base_dir.join(format!("{}.{}", self.id, ext))
     }
 }

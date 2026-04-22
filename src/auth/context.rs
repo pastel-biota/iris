@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
 
 use crate::auth::{config::AuthConfig, session::SessionsStore};
 

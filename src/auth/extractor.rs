@@ -40,7 +40,7 @@ where
             }
         }.ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let Some(session) = super::auth::verify_session(&ctx.auth, &session_id).await.unwrap() else {
+        let Some(session) = super::auth::verify_session(&ctx.auth, session_id).await.unwrap() else {
             return Err(StatusCode::UNAUTHORIZED);
         };
 

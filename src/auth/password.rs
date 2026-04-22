@@ -37,7 +37,7 @@ impl FromStr for Password {
             anyhow::bail!("You need to type non-empty password");
         }
 
-        if password.as_bytes().len() > 72 {
+        if password.len() > 72 {
             anyhow::bail!("Your password contains more than 72 bytes, which can't be used for the password!");
         }
 
@@ -81,7 +81,7 @@ pub fn hash_password(password: &Password) -> anyhow::Result<HashedPassword> {
     let mut salt_rng: StdRng = rand::make_rng();
     let salt: [u8; 16] = salt_rng.random();
 
-    let hashed = bcrypt::hash_with_salt(&password.0.as_bytes(), bcrypt::DEFAULT_COST, salt)
+    let hashed = bcrypt::hash_with_salt(password.0.as_bytes(), bcrypt::DEFAULT_COST, salt)
         .context("Couldn't geneerate the hash for the password")?;
 
     Ok(HashedPassword(hashed.to_string()))

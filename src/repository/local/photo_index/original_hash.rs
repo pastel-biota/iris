@@ -1,18 +1,14 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    path::{Path, PathBuf}, process::id,
-};
+use std::collections::HashMap;
 
 use anyhow::{Context as _, bail};
 
 use crate::{
-    model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::photo_index::PhotoIndexProvider,
+    model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
 };
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Debug)]
 pub struct OriginalSha256Index {
-    path: PathBuf,
+    path: ScopedPath,
     content: Option<IndexEntry>,
 }
 
@@ -67,7 +63,7 @@ impl PhotoIndexProvider for OriginalSha256Index {
 
         photo
             .images
-            .insert(image_id.to_string(), image.clone().into());
+            .insert(image_id.to_string(), image.clone());
 
         self.save()?;
 
@@ -81,9 +77,9 @@ impl PhotoIndexProvider for OriginalSha256Index {
 }
 
 impl OriginalSha256Index {
-    pub fn new(path: &Path) -> OriginalSha256Index {
+    pub fn new(path: &ScopedPath) -> OriginalSha256Index {
         OriginalSha256Index {
-            path: path.to_path_buf(),
+            path: path.clone(),
             content: None,
         }
     }
@@ -141,11 +137,15 @@ impl OriginalSha256Index {
     }
 
     fn save(&mut self) -> anyhow::Result<()> {
-        let mut file =
-            File::create(&self.path).context("Failed to create a file for the sha256 index")?;
+        let bytes = {
+            let entry = self.load_mut()?;
+            serde_json::to_vec_pretty(entry)
+                .context("Failed to serialize the sha256 index")?
+        };
 
-        serde_json::to_writer_pretty(&mut file, &self.load_mut()?)
-            .context("Failed to write a empty entry for the sha256 indexx")?;
+        self.path
+            .write(bytes)
+            .context("Failed to write the sha256 index")?;
 
         Ok(())
     }

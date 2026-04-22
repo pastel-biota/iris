@@ -29,7 +29,7 @@ pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
         format: ImageFormat::PNG,
     },
 ];
-pub const TINIEST_RESIZE_TARGET: &'static ResizeTargets = &RESIZE_TARGETS[0];
+pub const TINIEST_RESIZE_TARGET: &ResizeTargets = &RESIZE_TARGETS[0];
 
 pub struct ResizeResult {
     pub target: ResizeTargets,

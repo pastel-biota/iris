@@ -2,8 +2,7 @@ use image::{DynamicImage, metadata::Orientation as OrientationMetadata};
 
 use crate::model::{Orientation, Rotation};
 
-pub async fn stand_image(original_orientation: &Orientation, mut image: DynamicImage) -> DynamicImage {
-    let original_orientation = original_orientation.clone();
+pub async fn stand_image(original_orientation: Orientation, mut image: DynamicImage) -> DynamicImage {
     tokio::task::spawn_blocking(move || {
         // image.apply_orientation(/**/) rotates N deg in clockwise
         let orientation_meta = match &original_orientation.rotation {

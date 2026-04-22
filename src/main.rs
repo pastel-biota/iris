@@ -1,3 +1,5 @@
+#![deny(clippy::disallowed_types)]
+
 use std::{process::ExitCode, sync::Arc};
 
 use tokio::sync::RwLock;
@@ -10,7 +12,7 @@ use crate::{
     event::{EventSender, create_event_bus},
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
-    repository::registry::PhotoStorageRegistry
+    repository::{io::ScopedPath, registry::PhotoStorageRegistry},
 };
 
 #[cfg(feature = "federation")]
@@ -74,15 +76,17 @@ async fn run() -> Result<(), anyhow::Error> {
     let Entry { command, config } = parse_config()?;
     let (event_tx, event_rx) = create_event_bus(64);
 
+    let ingest_scope = ScopedPath::from_allowed_dir(&config.ingest.dir);
+
     let ctx = Arc::new(Context {
-        registry: RwLock::new(PhotoStorageRegistry::new(&config.ingest.dir)),
+        registry: RwLock::new(PhotoStorageRegistry::new(&ingest_scope)),
         service: ServiceContext::try_from_config(&config)?,
         auth: AuthContext::new(config.auth),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
 
         #[cfg(feature = "federation")]
-        federation: FederationContext::new(&config.ingest.dir, config.federation),
+        federation: FederationContext::new(ingest_scope.use_path(), config.federation),
 
         base: config.base,
         event_tx,

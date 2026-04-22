@@ -78,7 +78,7 @@ pub async fn get_image(
             .into_response();
     };
 
-    let photo_stream = match registry.load_image(&photo_id, &image_id, &image_meta).await {
+    let photo_stream = match registry.load_image(&photo_id, &image_id, image_meta).await {
         Ok(photo) => photo,
         Err(err) => {
             return (

@@ -14,10 +14,10 @@ pub fn average_color(image: &DynamicImage) -> Rgb<u8> {
     let averaged_color = image
         .pixels()
         .filter(|(x, y, pixel)| {
-            !left_dead.contains(&x)
-                && !right_dead.contains(&x)
-                && !top_dead.contains(&y)
-                && !bottom_dead.contains(&y)
+            !left_dead.contains(x)
+                && !right_dead.contains(x)
+                && !top_dead.contains(y)
+                && !bottom_dead.contains(y)
                 && !too_dark(pixel)
         })
         .map(|(_, _, pixel)| pixel.to_rgb().0)

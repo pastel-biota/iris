@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::Context;
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use rand::RngExt;
 

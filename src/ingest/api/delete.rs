@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, auth::extractor::IrisSession, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, model::Identifier};
+use crate::{Context, auth::extractor::IrisSession, infra::api::types::{ClientError, client_error}, model::Identifier};
 
 /// A new field
 ///

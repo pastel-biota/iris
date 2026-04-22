@@ -32,7 +32,7 @@ pub async fn process_image(original_bytes: Bytes) -> anyhow::Result<ProcessedIma
     };
 
     let original_meta = decode::get_original_image_meta(&decoded.image, &decoded.format)?;
-    let stood = stand::stand_image(orientation, decoded.image).await;
+    let stood = stand::stand_image(*orientation, decoded.image).await;
     let averaged_color = color::average_color(&stood);
 
     Ok(ProcessedImage {

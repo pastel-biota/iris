@@ -13,7 +13,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::Context;
 
-pub fn photo_route(ctx: Arc<Context>) -> OpenApiRouter<Arc<Context>> {
+pub fn photo_route(_ctx: Arc<Context>) -> OpenApiRouter<Arc<Context>> {
     OpenApiRouter::new()
         .routes(routes!(delete::delete))
         .routes(routes!(new_photo::new_photo))

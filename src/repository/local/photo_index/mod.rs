@@ -1,11 +1,11 @@
 pub mod all;
 pub mod original_hash;
 
-use std::{collections::HashMap, fs::File, path::Path};
+use std::collections::HashMap;
 
 use anyhow::Context as _;
 
-use crate::model::{Identifier, ImageMeta, PhotoMeta, PhotoReference};
+use crate::{model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::io::ScopedPath};
 
 use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
 
@@ -15,7 +15,7 @@ pub struct PhotoIndex {
 }
 
 impl PhotoIndex {
-    pub fn new(base_dir: &Path) -> Self {
+    pub fn new(base_dir: &ScopedPath) -> Self {
         PhotoIndex {
             all_index: AllImageIndex::new(&base_dir.join("all.json")),
             hash_index: OriginalSha256Index::new(&base_dir.join("sha256.json")),
@@ -96,29 +96,29 @@ pub trait PhotoIndexProvider {
     ) -> anyhow::Result<()>;
     fn total_count(&mut self) -> anyhow::Result<u32>;
 
-    fn load_to_file(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {
+    fn load_to_file(&mut self, path: &ScopedPath) -> anyhow::Result<Self::Entry> {
         if !path.exists() {
             return self.init(path);
         }
 
-        let file = File::open(path).context(format!(
+        let bytes = path.read_binary().context(format!(
             "Failed to open a file for the {}",
             Self::INDEX_NAME
         ))?;
 
-        serde_json::from_reader(file)
+        serde_json::from_slice(&bytes)
             .context(format!("The {} contains invalid content", Self::INDEX_NAME))
     }
 
-    fn init(&mut self, path: &Path) -> anyhow::Result<Self::Entry> {
-        let mut file = File::create(path).context(format!(
-            "Failed to create a file for the {}",
+    fn init(&mut self, path: &ScopedPath) -> anyhow::Result<Self::Entry> {
+        let value = Self::Entry::default();
+        let bytes = serde_json::to_vec_pretty(&value).context(format!(
+            "Failed to serialize an empty entry for the {}",
             Self::INDEX_NAME
         ))?;
 
-        let value = Self::Entry::default();
-        serde_json::to_writer_pretty(&mut file, &value).context(format!(
-            "Failed to write a empty entry for the {}",
+        path.write(bytes).context(format!(
+            "Failed to create a file for the {}",
             Self::INDEX_NAME
         ))?;
 
