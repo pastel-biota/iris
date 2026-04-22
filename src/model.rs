@@ -52,6 +52,10 @@ impl FromStr for Identifier {
         let month: u32 = s[4..6].parse()?;
         let ulid = s[7..].to_string();
 
+        if ulid.contains(|char: char| !char.is_ascii_alphanumeric()) {
+            anyhow::bail!("ULID part contains invalid character");
+        }
+
         Ok(Identifier { year, month, ulid })
     }
 }
