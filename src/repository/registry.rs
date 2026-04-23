@@ -56,11 +56,6 @@ impl PhotoStorageRegistry {
     }
 
     pub fn load_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        let Some(photo) = self.dir.load_photo_meta(&LocalIdentifier(id.clone()))? else {
-            return Ok(None);
-        };
-        return Ok(Some(photo));
-
         let Some(photo_ref) = self.index.get_photo_ref(id)? else {
             return Ok(None);
         };
