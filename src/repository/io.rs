@@ -18,7 +18,7 @@ impl ScopedPath {
             panic!("ScopedPath::from_allowed_dir was invoked for non-directory path");
         }
 
-        tracing::debug!("Initialized ScopedPath at {}", dir.display());
+        tracing::debug!(dir=dir.display().to_string(), "Initialized ScopedPath");
 
         Self {
             allowed_path: dir.to_path_buf(),

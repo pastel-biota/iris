@@ -20,13 +20,15 @@ pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> an
 
     let result = tokio::task::spawn_blocking({
         let job = job.clone();
+        let span = tracing::Span::current();
         move || -> anyhow::Result<ResizeResult> {
-            tracing::debug!("Reading the image");
+            let _span = span.enter();
+            tracing::debug!("reading the image");
             let original_image = ImageReader::new(Cursor::new(original_image))
                 .with_guessed_format()?
                 .decode()?;
 
-            tracing::debug!("Rotating the image upright");
+            tracing::debug!("rotating the image upright");
             let orientation = match photo.properties.orientation.as_ref() {
                 Some(orientation) => orientation,
                 None => &Orientation::default(),
@@ -34,21 +36,21 @@ pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> an
 
             let original_image = stand_image(orientation, original_image);
 
-            tracing::debug!("Resizing");
+            tracing::debug!("resizing");
             let result = crate::services::image::resize::resize_image(&job.image_id, job.target, &original_image)?;
 
             Ok(result)
         }
     }).await.unwrap()?;
 
-    tracing::debug!("Registering");
+    tracing::debug!("uploading to the registry");
     
     {
         let mut registry = ctx.registry.write().await;
         registry.upload_image(&job.photo_id, &job.image_id, &result.meta, &result.data).await?;
     }
 
-    tracing::debug!("The image '{}' has been processed", &job.image_id);
+    tracing::debug!("image processing is done!");
 
     Ok(())
 }

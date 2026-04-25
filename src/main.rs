@@ -3,7 +3,6 @@
 use std::{process::ExitCode, sync::Arc};
 
 use tokio::sync::RwLock;
-use tracing_subscriber::EnvFilter;
 
 use crate::{
     auth::context::AuthContext,
@@ -48,9 +47,7 @@ pub struct Context {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    crate::infra::log::initialize_log();
 
     match run().await {
         Ok(_) => {

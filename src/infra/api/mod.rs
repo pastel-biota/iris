@@ -48,11 +48,8 @@ pub async fn run(
             }),
         )
         .merge(Redoc::with_url("/docs", openapi))
-        .layer(
-            tower::ServiceBuilder::new()
-                .layer(CorsLayer::permissive().allow_origin(cors_origin))
-                .layer(axum::middleware::from_fn(middleware::access_log))
-        )
+        .layer(CorsLayer::permissive().allow_origin(cors_origin))
+        .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(Extension(ctx.clone()));
 
     tracing::info!("Iris will be serving at http://{}", &ctx.ingest.config.listen);
