@@ -89,13 +89,7 @@ impl PhotoStorageRegistry {
             .context("Failed to retrieve the photos from federated node")?;
 
         for photo in photos.photos {
-            // TODO: Bulk
-            if self.local_index.get_photo_ref(photo.id())?.is_none() {
-                self.local_index.add_new_photo(&photo)?;
-                tracing::debug!("{} ... Newly Added!", photo.id());
-            } else {
-                tracing::debug!("{} ... already in the index", photo.id());
-            }
+            self.local_index.add_new_photo(&photo)?;
         }
 
         Ok(())

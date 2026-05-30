@@ -23,8 +23,8 @@ impl PhotoIndex {
     }
 
     pub fn add_new_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
-        self.all_index.add(photo)?;
-        self.hash_index.add_photo(photo)?;
+        self.all_index.upsert(photo)?;
+        self.hash_index.upsert(photo)?;
 
         assert!(self.all_index.total_count()? == self.hash_index.total_count()?);
 
@@ -43,14 +43,11 @@ impl PhotoIndex {
         Ok(())
     }
 
-    pub fn add_federated_reference(
-        &mut self,
-        photo_id: &Identifier,
-        image_id: &str,
-        image: &ImageMeta,
-    ) -> anyhow::Result<()> {
-        self.all_index.add_new_image(photo_id, image_id, image)?;
-        self.hash_index.add_new_image(photo_id, image_id, image)?;
+    pub fn upsert_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
+        self.all_index.upsert(photo)?;
+        self.hash_index.upsert(photo)?;
+
+        assert!(self.all_index.total_count()? == self.hash_index.total_count()?);
 
         Ok(())
     }
@@ -107,7 +104,7 @@ pub trait PhotoIndexProvider {
     const INDEX_NAME: &'static str;
     type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;
 
-    fn add_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()>;
+    fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()>;
     fn add_new_image(
         &mut self,
         photo_id: &Identifier,

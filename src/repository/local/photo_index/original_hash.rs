@@ -34,13 +34,16 @@ impl PhotoIndexProvider for OriginalSha256Index {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
 
-    fn add_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
+    fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        index
+        let replaced = index
             .pics
             .insert(photo.hash.clone(), photo.clone().into());
-        index.total_count += 1;
+
+        if replaced.is_none() {
+            index.total_count += 1;
+        }
 
         self.save()?;
 
