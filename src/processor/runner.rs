@@ -1,9 +1,9 @@
-use std::{io::Cursor, sync::Arc};
+use std::{io::Cursor, ops::ControlFlow, sync::Arc};
 use image::{DynamicImage, ImageReader, metadata::Orientation as OrientationMetadata};
 
 use anyhow::bail;
 
-use crate::{Context, model::{Orientation, Rotation}, processor::protocol::ImageProcessJob, services::image::resize::ResizeResult};
+use crate::{Context, model::{ImageMeta, Orientation, PhotoMeta, Rotation}, processor::{config::ResizeTargets, protocol::ImageProcessJob}, services::image::resize::ResizeResult};
 
 #[tracing::instrument(level = "debug", skip_all, fields(
     photo_id = job.photo_id.to_string(),
@@ -15,6 +15,13 @@ pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> an
     let Some(photo) = ({ ctx.registry.write().await.load_photo(&job.photo_id).await? }) else {
         bail!("No such photo found");
     };
+
+    if let ControlFlow::Continue(reason) = check_already_processed(&photo, &job.target, &job.image_id) {
+        tracing::debug!("The image will be processed: {reason}");
+    } else {
+        tracing::debug!("The image was already processed");
+        return Ok(());
+    }
 
     let original_image = { ctx.registry.write().await.load_original_image(&job.photo_id).await? };
 
@@ -67,3 +74,18 @@ fn stand_image(original_orientation: &Orientation, mut image: DynamicImage) -> D
     image.apply_orientation(orientation_meta);
     image
 }
+
+fn check_already_processed(photo: &PhotoMeta, target: &ResizeTargets, image_id: &str) -> ControlFlow<(), &'static str> {
+    tracing::trace!("Images: {}", photo.images.keys().map(|key| format!("{key}, ")).collect::<String>());
+    let Some(processed) = photo.images.get(image_id) else {
+        return ControlFlow::Continue("The photo does not contain image with the same ID");
+    };
+
+    tracing::trace!("{}x{} / {}x{}", processed.width, processed.height, target.width, target.height);
+    if processed.width.abs_diff(target.width) > 10 && processed.height.abs_diff(target.height) > 10 {
+        return ControlFlow::Continue("The size is not the same with the target");
+    }
+
+    return ControlFlow::Break(());
+}
+

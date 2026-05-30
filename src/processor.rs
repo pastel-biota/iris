@@ -50,6 +50,12 @@ async fn listen_events(
                 for image_id in ctx.processor.config.sizes.keys() {
                     register_resize(&ctx.processor, photo_id.clone(), image_id);
                 }
+            },
+            Event::PhotoReprocessRequested { photo_id } => {
+                tracing::info!("Received PhotoRegistered event for {photo_id}, enqueuing resize jobs");
+                for image_id in ctx.processor.config.sizes.keys() {
+                    register_reprocess(&ctx.processor, photo_id.clone(), image_id);
+                }
             }
         }
     }
@@ -58,6 +64,18 @@ async fn listen_events(
 }
 
 pub fn register_resize(ctx: &ProcessorContext, photo_id: Identifier, image_id: &str) {
+    let target = ctx.config.sizes.get(image_id).unwrap();
+
+    ctx.queue.add_job(JobApplication::ImageProcess(
+            ImageProcessJob {
+                photo_id,
+                image_id: image_id.to_string(),
+                target: target.clone()
+            }
+    ));
+}
+
+pub fn register_reprocess(ctx: &ProcessorContext, photo_id: Identifier, image_id: &str) {
     let target = ctx.config.sizes.get(image_id).unwrap();
 
     ctx.queue.add_job(JobApplication::ImageProcess(

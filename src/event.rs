@@ -3,6 +3,7 @@ use crate::model::Identifier;
 #[derive(Debug, Clone)]
 pub enum Event {
     PhotoRegistered { photo_id: Identifier },
+    PhotoReprocessRequested { photo_id: Identifier },
 }
 
 pub type EventSender = tokio::sync::mpsc::Sender<Event>;
