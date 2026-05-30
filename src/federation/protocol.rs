@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use anyhow::bail;
+use anyhow::{Context, bail};
+use futures_util::{Stream, TryStreamExt};
+use http::{HeaderName, Method, header};
 use serde_json::Value;
 
-use crate::infra::api::types::IrisResponse;
+use crate::{auth::session, infra::api::types::IrisResponse, ingest::api::scheme::PhotoScheme, model::Identifier, repository::io::LengthedStream};
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -30,16 +32,40 @@ macro_rules! path {
     };
 }
 
+fn contrust_request<E: Endpoint>(
+    session_id: Option<&str>,
+    origin: &str,
+    param: E::Request
+) -> Result<reqwest_middleware::RequestBuilder, RequestError> {
+    let (method, path) = E::PATH;
+
+    let req = if method == Method::GET {
+        let path = to_param(path, param)?;
+        super::request::create_client()
+            .request(method, format!("{}{}", origin, path))
+    } else {
+        super::request::create_client()
+            .request(method, format!("{}{}", origin, path))
+            .body(serde_json::to_string(&param).context("Could not serialize the body")?)
+            .header(header::CONTENT_TYPE, "application/json")
+    };
+
+    let req = if let Some(session_id) = session_id {
+        req.header(header::AUTHORIZATION, format!("Bearer {}", session_id))
+    } else {
+        req
+    };
+
+    Ok(req)
+}
+
 pub async fn request<E: Endpoint>(
-    ctx: Arc<crate::Context>,
+    session_id: Option<&str>,
     origin: &str,
     param: E::Request
 ) -> Result<E::Response, RequestError> {
-    let (method, path) = E::PATH;
-    let query = to_query_param(param)?;
-
-    let req = super::request::create_client()
-        .request(method, format!("{}/federation{}{}", origin, path, query)) .with_extension(ctx.clone()) .send()
+    let req = contrust_request::<E>(session_id, origin, param)?
+        .send()
         .await
         .unwrap();
 
@@ -58,10 +84,39 @@ pub async fn request<E: Endpoint>(
             Err(RequestError::Applictaion(code, reason))
         }
     }
-
 }
 
-fn to_query_param(query: impl serde::Serialize) -> anyhow::Result<String> {
+pub async fn request_stream<E: Endpoint>(
+    session_id: Option<String>,
+    origin: String,
+    param: E::Request
+) -> Result<LengthedStream, RequestError> {
+    let req = contrust_request::<E>(session_id.as_deref(), &origin, param)?
+        .send()
+        .await
+        .unwrap();
+
+    let code = req.status();
+
+    if !code.is_success() {
+        let response = req.json::<IrisResponse<E::Response>>().await;
+
+        return if let Ok(IrisResponse::Error { reason }) = response {
+            Err(RequestError::Applictaion(code, reason))
+        } else {
+            Err(RequestError::Anyhow(anyhow::anyhow!("HTTP status code was {code} and it is not application error")))
+        };
+    }
+
+    Ok(LengthedStream {
+        len: req.headers().get(http::header::CONTENT_LENGTH)
+            .and_then(|text| text.to_str().ok())
+            .and_then(|text| text.parse().ok()),
+        stream: Box::pin(req.bytes_stream().map_err(|error| error.to_string()))
+    })
+}
+
+fn to_param(url: &str, query: impl serde::Serialize) -> anyhow::Result<String> {
     let query = serde_json::to_value(query)?;
 
     if query == Value::Null {
@@ -73,6 +128,7 @@ fn to_query_param(query: impl serde::Serialize) -> anyhow::Result<String> {
     };
 
     let mut query_strs = Vec::new();
+    let mut url = url.to_owned();
 
     for (key, value) in query.into_iter() {
         let value = match value {
@@ -90,10 +146,18 @@ fn to_query_param(query: impl serde::Serialize) -> anyhow::Result<String> {
             }
         };
 
-        query_strs.push(format!("{}={}", key, urlencoding::encode(&value)));
+        let value = urlencoding::encode(&value);
+
+        let url_tag = format!("{{{key}}}");
+        if url.contains(&url_tag) {
+            url = url.replace(&url_tag, &value.to_string());
+        } else {
+            query_strs.push(format!("{}={}", key, value));
+        }
+
     }
 
-    Ok(format!("?{}", query_strs.join("&")))
+    Ok(format!("{}?{}", url, query_strs.join("&")))
 }
 
 pub struct ListFederatedPhoto;

@@ -22,7 +22,7 @@ impl PhotoIndex {
         }
     }
 
-    pub fn add_new_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
+    pub fn add_new_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
         self.all_index.add(photo)?;
         self.hash_index.add_photo(photo)?;
 
@@ -32,6 +32,18 @@ impl PhotoIndex {
     }
 
     pub fn add_new_image(
+        &mut self,
+        photo_id: &Identifier,
+        image_id: &str,
+        image: &ImageMeta,
+    ) -> anyhow::Result<()> {
+        self.all_index.add_new_image(photo_id, image_id, image)?;
+        self.hash_index.add_new_image(photo_id, image_id, image)?;
+
+        Ok(())
+    }
+
+    pub fn add_federated_reference(
         &mut self,
         photo_id: &Identifier,
         image_id: &str,
@@ -71,6 +83,14 @@ impl PhotoIndex {
             .get_photos_list_from_hashes_list(hash)
     }
 
+    pub fn get_photos_list_by_ids_list<'s>(
+        &'s mut self,
+        ids: &[Identifier],
+    ) -> anyhow::Result<Vec<&'s PhotoReference>> {
+        self.hash_index
+            .list_photos_from_ids_list(ids)
+    }
+
     pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<()> {
         let photo = self.all_index.delete_photo(photo_id)?;
         self.hash_index.delete_photo(photo_id, &photo.hash)?;
@@ -87,7 +107,7 @@ pub trait PhotoIndexProvider {
     const INDEX_NAME: &'static str;
     type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;
 
-    fn add_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()>;
+    fn add_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()>;
     fn add_new_image(
         &mut self,
         photo_id: &Identifier,

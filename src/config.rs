@@ -11,7 +11,7 @@ use config::Config as ConfigLoad;
 use serde::Deserialize;
 
 use crate::{
-    auth::config::AuthConfig, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, processor::config::ImageProcessConfig
+    auth::config::AuthConfig, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, model::EntityName, processor::config::ImageProcessConfig, repository::config::FederationConfig
 };
 
 #[cfg(feature = "federation")]
@@ -50,7 +50,7 @@ enum SubCommands {
 ))]
 pub struct UserOptions {
     #[clap(short, long)]
-    pub name: String,
+    pub name: EntityName,
 
     /// The file of the configuration file to be written
     #[clap(short = 'w', long)]
@@ -91,8 +91,6 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub processors: PropertyConfig,
     pub image: ImageProcessConfig,
-
-    #[cfg(feature = "federation")]
     pub federation: FederationConfig,
 }
 

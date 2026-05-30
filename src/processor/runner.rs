@@ -12,7 +12,7 @@ use crate::{Context, model::{Orientation, Rotation}, processor::protocol::ImageP
 pub async fn run_image_processing(ctx: Arc<Context>, job: ImageProcessJob) -> anyhow::Result<()> {
     tracing::debug!("Processing job picked up, getting the photo");
 
-    let Some(photo) = ({ ctx.registry.write().await.load_photo(&job.photo_id)? }) else {
+    let Some(photo) = ({ ctx.registry.write().await.load_photo(&job.photo_id).await? }) else {
         bail!("No such photo found");
     };
 

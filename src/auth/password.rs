@@ -10,6 +10,12 @@ static DUMMY_HASH: LazyLock<HashedPassword> = LazyLock::new(|| {
 #[derive(Clone, serde::Deserialize, utoipa::ToSchema)]
 pub struct Password(String);
 
+impl Password {
+    pub fn from_string(string: String) -> Self {
+        Password(string)
+    }
+}
+
 impl std::fmt::Debug for Password {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Password").field(&"***".to_string()).finish()

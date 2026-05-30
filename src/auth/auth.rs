@@ -1,4 +1,4 @@
-use crate::auth::{config::Entity, context::AuthContext, password::Password, session::Session};
+use crate::{auth::{config::Entity, context::AuthContext, password::Password, session::ValidSession}, model::EntityName};
 
 #[derive(thiserror::Error, Debug)]
 pub enum LoginError {
@@ -9,7 +9,7 @@ pub enum LoginError {
     GenericError(#[from] anyhow::Error),
 }
 
-pub async fn login_to_user(ctx: &AuthContext, username: &str, password: &Password) -> Result<String, LoginError> {
+pub async fn login_to_user(ctx: &AuthContext, username: &EntityName, password: &Password) -> Result<String, LoginError> {
     let entity = ctx.config.entities.get(username);
     let user = match entity {
         Some(Entity::User(user)) => Some(user),
@@ -28,7 +28,7 @@ pub async fn login_to_user(ctx: &AuthContext, username: &str, password: &Passwor
     Ok(session_key)
 }
 
-pub async fn verify_session(ctx: &AuthContext, session_key: &str) -> anyhow::Result<Option<Session>> {
+pub async fn verify_session(ctx: &AuthContext, session_key: &str) -> anyhow::Result<Option<ValidSession>> {
     ctx.state.lock()
         .unwrap()
         .sessions

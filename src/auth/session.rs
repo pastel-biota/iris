@@ -8,10 +8,46 @@ use crate::auth::config::Entity;
 pub const SESSION_DURATION: chrono::Duration = chrono::Duration::days(7);
 
 #[derive(Default, Debug)]
-pub struct SessionsStore(HashMap<String, Session>);
+pub struct SessionsStore(HashMap<String, ValidSession>);
 
 #[derive(Clone, Debug)]
-pub struct Session {
+pub enum Session {
+    Valid(ValidSession),
+    Bypassed,
+}
+
+impl Session {
+    pub fn bypass_or_verify(&self, verify_fn: impl FnOnce(&ValidSession) -> bool) -> bool {
+        match self {
+            Session::Valid(valid_session) => verify_fn(valid_session),
+            Session::Bypassed => true,
+        }
+    }
+
+    pub fn bypass_or_ensure<E>(&self, ensure_fn: impl FnOnce(&ValidSession) -> Result<(), E>) -> Result<(), E> {
+        match self {
+            Session::Valid(valid_session) => ensure_fn(valid_session),
+            Session::Bypassed => Ok(()),
+        }
+    }
+
+    pub fn not_bypassed(&self) -> Option<&ValidSession> {
+        match self {
+            Session::Valid(valid_session) => Some(valid_session),
+            Session::Bypassed => None,
+        }
+    }
+
+    pub fn is_bypassed(&self) -> bool {
+        match self {
+            Session::Valid(_) => false,
+            Session::Bypassed => true,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ValidSession {
     pub entity: Entity,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
@@ -21,12 +57,12 @@ impl SessionsStore {
         let session_id: [u8; 64] = rand::make_rng::<rand::rngs::StdRng>().random();
         let session_key = BASE64_URL_SAFE.encode(session_id);
     
-        self.0.insert(session_key.clone(), Session::issue_new(entity));
+        self.0.insert(session_key.clone(), ValidSession::issue_new(entity));
     
         Ok(session_key)
     }
 
-    pub fn get_session(&mut self, key: &str) -> anyhow::Result<Option<Session>> {
+    pub fn get_session(&mut self, key: &str) -> anyhow::Result<Option<ValidSession>> {
         let Some(session) = self.0.get(key).cloned() else {
             return Ok(None);
         };
@@ -40,7 +76,7 @@ impl SessionsStore {
     }
 }
 
-impl Session {
+impl ValidSession {
     pub fn issue_new(entity: Entity) -> Self {
         Self {
             entity,

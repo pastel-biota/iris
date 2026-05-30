@@ -49,7 +49,7 @@ pub async fn reprocess(
 
     let photo = {
         let mut registry = ctx.registry.write().await;
-        match registry.load_photo(&photo_id) {
+        match registry.load_photo(&photo_id).await {
             Ok(photo) => photo,
             Err(err) => {
                 return (

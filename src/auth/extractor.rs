@@ -5,7 +5,7 @@ use axum::{
     http::{request::Parts, StatusCode},
 };
 
-use crate::auth::{protocol::{extract_from_cookie, extract_from_header}, session::Session};
+use crate::auth::{protocol::{extract_from_cookie, extract_from_header}, session::{Session, ValidSession}};
 
 pub struct IrisSession(pub Session);
 
@@ -38,12 +38,23 @@ where
             } else {
                 None
             }
-        }.ok_or(StatusCode::UNAUTHORIZED)?;
+        };
+
+        let session_id = match session_id {
+            Some(id) => id,
+            None => {
+                return if ctx.auth.config.unrestricted_instance == Some(true) {
+                    Ok(IrisSession(Session::Bypassed))
+                } else {
+                    Err(StatusCode::UNAUTHORIZED)
+                };
+            }
+        };
 
         let Some(session) = super::auth::verify_session(&ctx.auth, session_id).await.unwrap() else {
             return Err(StatusCode::UNAUTHORIZED);
         };
 
-        Ok(IrisSession(session))
+        Ok(IrisSession(Session::Valid(session)))
     }
 }

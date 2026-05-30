@@ -34,12 +34,12 @@ impl PhotoIndexProvider for OriginalSha256Index {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
 
-    fn add_photo(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
+    fn add_photo(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         index
             .pics
-            .insert(photo.original_sha256.clone(), photo.clone().into());
+            .insert(photo.hash.clone(), photo.clone().into());
         index.total_count += 1;
 
         self.save()?;
@@ -96,6 +96,19 @@ impl OriginalSha256Index {
     pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {
         let IndexEntry::V1(index) = self.load_mut()?;
         Ok(index.pics.contains_key(hash))
+    }
+
+    pub fn list_photos_from_ids_list(
+        &mut self,
+        ids: &[Identifier],
+    ) -> anyhow::Result<Vec<&PhotoReference>> {
+        let IndexEntry::V1(index) = self.load_mut()?;
+
+        // FIXME: This is O(n^2)! 
+        Ok(ids
+            .iter()
+            .flat_map(|id| index.pics.values().find(|photo| photo.id() == id))
+            .collect::<Vec<_>>())
     }
 
     pub fn get_photos_list_from_hashes_list<'s, 'h>(

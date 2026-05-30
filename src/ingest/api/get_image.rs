@@ -1,17 +1,26 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use axum::{
-    Json,
-    extract::{Path, State},
-    http::{StatusCode, header},
-    response::IntoResponse,
+    Json, body::Body, extract::{Path, State}, http::{StatusCode, header}, response::IntoResponse
 };
+use http::{HeaderMap, HeaderValue};
 
 use crate::{
-    Context,
-    infra::api::types::{BinaryBody, ClientError, client_error},
-    model::Identifier,
+    Context, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError, client_error}, model::Identifier
 };
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct GetImageRequest {
+    pub photo_id: Identifier,
+    pub image_id: String,
+}
+
+pub struct GetImageEndpoint;
+impl Endpoint for GetImageEndpoint {
+    const PATH: (http::Method, &str) = (http::Method::GET, "/photos/{photo_id}/images/{image_id}");
+    type Request = GetImageRequest;
+    type Response = ();
+}
 
 /// Get actual image
 ///
@@ -35,6 +44,7 @@ use crate::{
 )]
 pub async fn get_image(
     State(ctx): State<Arc<Context>>,
+    IrisSession(session): IrisSession,
     Path((photo_id, image_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
     let Ok(photo_id) = photo_id.parse::<Identifier>() else {
@@ -45,8 +55,12 @@ pub async fn get_image(
             .into_response();
     };
 
+    if let Err(err) = whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id) {
+        return (StatusCode::FORBIDDEN, Json(client_error(&err.to_string()))).into_response();
+    }
+
     let mut registry = ctx.registry.write().await;
-    let photo = match registry.load_photo(&photo_id) {
+    let photo = match registry.load_photo(&photo_id).await {
         Ok(photo) => photo,
         Err(err) => {
             return (
@@ -92,13 +106,22 @@ pub async fn get_image(
         }
     };
 
+    let mut headers = HeaderMap::<HeaderValue>::from_iter([
+        (header::CONTENT_TYPE, image_meta.mime.as_str().try_into().unwrap()),
+        (header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=2592000, immutable")),
+    ]);
+
+    if let Some(len) = photo_stream.len {
+        headers.insert(
+            header::CONTENT_LENGTH,
+            (&len.to_string()).try_into().unwrap(),
+        );
+    }
+
     (
         StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, image_meta.mime.as_str()),
-            (header::CACHE_CONTROL, "public, max-age=2592000, immutable"),
-        ],
-        photo_stream,
+        headers,
+        Body::from_stream(photo_stream.stream),
     )
         .into_response()
 }

@@ -7,4 +7,6 @@ pub mod auth;
 pub mod extractor;
 pub mod api;
 pub mod protocol;
+pub mod whitelist;
+pub mod endpoint;
 

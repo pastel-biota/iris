@@ -1,10 +1,11 @@
 use anyhow::{Context, bail};
+use futures_util::Stream;
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _},
     pin,
 };
 
-use crate::{model::{ImageMeta, LocalIdentifier, PhotoMeta}, repository::io::ScopedPath};
+use crate::{model::{ImageMeta, LocalIdentifier, PhotoMeta}, repository::io::{LengthedStream, ScopedPath}};
 
 pub struct PhotoStorageDirectory {
     base_dir: ScopedPath,
@@ -17,11 +18,11 @@ impl PhotoStorageDirectory {
         }
     }
 
-    pub fn load_photo_meta(&mut self, id: &LocalIdentifier) -> anyhow::Result<Option<PhotoMeta>> {
+    pub fn load_photo_meta(&mut self, id: &LocalIdentifier) -> anyhow::Result<PhotoMeta> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         if !self.photo_exists(id) {
-            return Ok(None);
+            anyhow::bail!("The local photo exists in the index but not in the filesystem")
         }
 
         let file_content = paths.meta().read_binary()
@@ -30,7 +31,7 @@ impl PhotoStorageDirectory {
         let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
             .with_context(|| format!("The metafile for {id} exists, but is malformed"))?;
 
-        Ok(Some(meta))
+        Ok(meta)
     }
 
     pub async fn load_image(
@@ -38,21 +39,17 @@ impl PhotoStorageDirectory {
         photo_id: &LocalIdentifier,
         image_id: &str,
         image: &ImageMeta,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<LengthedStream> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut image_file = paths.for_image(image_id, &image.extension)
+        let image_file = paths.for_image(image_id, &image.extension)
             .open_file()
             .await
             .context("Failed to open image file")?;
 
-        let mut vec = Vec::new();
-        image_file
-            .read_to_end(&mut vec)
+        LengthedStream::from_file(image_file)
             .await
-            .context("Failed to read image file")?;
-
-        Ok(vec)
+            .context("Could not read the file's metadata")
     }
 
     pub async fn load_original_image(
@@ -120,9 +117,7 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<PhotoMeta> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut meta = self
-            .load_photo_meta(photo_id)?
-            .context("The photo was not found")?;
+        let mut meta = self.load_photo_meta(photo_id)?;
 
         let path = paths.for_image(image_id, &image.extension);
         self.write_image(&path, image_data).await?;

@@ -1,18 +1,18 @@
 use serde::Serialize;
 
-use crate::auth::{config::{AuthConfig, Entity, UserEntity}, password::HashedPassword};
+use crate::{auth::{config::{AuthConfig, Entity, UserEntity}, password::HashedPassword}, model::EntityName};
 
 #[derive(Debug, Serialize, Default)]
 pub struct PartialConfig {
     auth: AuthConfig,
 }
 
-pub fn serialize_new_user(name: &str, password: HashedPassword) -> anyhow::Result<String> {
+pub fn serialize_new_user(name: &EntityName, password: HashedPassword) -> anyhow::Result<String> {
     let mut config = PartialConfig::default();
 
     config.auth.entities.insert(
-        name.to_string(),
-        Entity::User(UserEntity { password })
+        name.clone(),
+        Entity::User(UserEntity { name: name.clone(), password })
     );
 
     let config_content = toml::to_string(&config)?.trim().to_string();

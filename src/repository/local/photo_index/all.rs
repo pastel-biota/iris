@@ -63,7 +63,41 @@ impl AllImageIndex {
         }
     }
 
-    pub fn add(&mut self, photo: &PhotoMeta) -> anyhow::Result<()> {
+    pub fn add(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
+        let AllImageIndexEntry::V1(index) = self.load()?;
+
+        let month_pics = index
+            .pics
+            .entry(photo.id().year.to_string())
+            .or_default()
+            .entry(photo.id().month.to_string())
+            .or_default();
+
+        if month_pics
+            .iter()
+            .any(|stored_photo| stored_photo.id() == photo.id())
+        {
+            anyhow::bail!("There already is an identifier with that photo")
+        }
+
+        index.total_count += 1;
+
+        // figure out where to insert. The array should be sorted by shot_time's asc
+        let index = month_pics
+            .iter()
+            .position(|stored_path| stored_path.shot_time > photo.shot_time)
+            .unwrap_or(month_pics.len());
+        month_pics.insert(index, photo.clone().into());
+
+        self.save()?;
+
+        Ok(())
+    }
+
+    pub fn add_federated_reference(
+        &mut self,
+        photo: &PhotoReference
+    ) -> anyhow::Result<()> {
         let AllImageIndexEntry::V1(index) = self.load()?;
 
         let month_pics = index

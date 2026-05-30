@@ -1,9 +1,10 @@
-use std::{collections::HashMap, fmt::{self, Display}, ops::Deref, str::FromStr};
+use std::{collections::{HashMap, HashSet}, fmt::{self, Display}, ops::Deref, str::FromStr};
 
+use anyhow::bail;
 use chrono::{DateTime, Datelike, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, utoipa::ToSchema)]
 pub struct Identifier {
     pub year: i32,
     pub month: u32,
@@ -80,7 +81,7 @@ impl Deref for LocalIdentifier {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhotoMeta {
     pub origin: PhotoOrigin,
-    pub original: ImageMeta,
+    pub original: Option<ImageMeta>,
     pub images: HashMap<String, ImageMeta>,
     pub original_sha256: String,
     pub properties: Properties,
@@ -195,11 +196,14 @@ impl From<PhotoMeta> for PhotoReference {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum PhotoOrigin {
     Local(LocalIdentifier),
-    Federated {
-        federator: String,
-        identifier: Identifier,
-    }
+    Federated(RemoteOrigin)
 } 
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RemoteOrigin {
+    pub federator: EntityName,
+    pub identifier: Identifier,
+}
 
 impl PhotoOrigin {
     pub fn local(&self) -> bool {
@@ -220,14 +224,79 @@ impl PhotoOrigin {
     pub fn id(&self) -> &Identifier {
         match self {
             Self::Local(id) => &id.0,
-            Self::Federated { identifier, .. } => identifier,
+            Self::Federated(origin) => &origin.identifier,
         }
     }
 
-    pub fn federator(&self) -> Option<&str> {
+    pub fn federator(&self) -> Option<&EntityName> {
         match self {
             Self::Local(_) => None,
-            Self::Federated { federator, .. } => Some(federator),
+            Self::Federated(origin) => Some(&origin.federator),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct EntityName(String);
+
+impl Display for EntityName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Deref for EntityName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FromStr for EntityName {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.chars().all(|ch: char| ch.is_ascii_alphabetic() || ch == '-' || ch == '_') {
+            bail!("There is a invalid character - only 0..9, a..z, A..Z, hyphen, underscore can be used")
+        }
+
+        Ok(EntityName(s.to_string()))
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum Whitelist {
+    Select { pics: Vec<Identifier>, },
+    Everything,
+}
+
+impl Whitelist {
+    pub fn new_selective() -> Self {
+        Self::Select { pics: Vec::new() }
+    }
+
+    pub fn allow_photos(self, photos: &[Identifier]) -> Self {
+        match self {
+            Whitelist::Select { mut pics } => {
+                pics.extend(photos.iter().cloned());
+                Whitelist::Select { pics }
+            },
+            Whitelist::Everything => self,
+        }
+    }
+
+    pub fn is_allowed(&self, id: &Identifier) -> bool {
+        match self {
+            Self::Select { pics } => pics.contains(id),
+            Self::Everything => true,
+        }
+    }
+
+    pub fn seleted_pics(&self) -> Option<&[Identifier]> {
+        match self {
+            Self::Select { pics } => Some(pics),
+            Self::Everything => None,
         }
     }
 }

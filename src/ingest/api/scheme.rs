@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::model::{ImageMeta, PhotoMeta, PhotoReference, Properties};
+use crate::model::{EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, Orientation, PhotoMeta, PhotoOrigin, PhotoReference, Properties, RemoteOrigin, Rotation};
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
     /// Identifier assigned to the created photo.
     #[schema(example = "202601_img_0001_jpg-01AAAA")]
-    id: String,
+    id: Identifier,
 
-    federator: Option<String>,
+    federator: Option<EntityName>,
 
     /// The hexadecimal representation of SHA256 hash.
     #[schema(
@@ -33,8 +33,8 @@ pub struct PhotoScheme {
 impl From<PhotoMeta> for PhotoScheme {
     fn from(value: PhotoMeta) -> Self {
         Self {
-            id: value.id().to_string(),
-            federator: value.origin.federator().map(|str| str.to_string()),
+            id: value.id().clone(),
+            federator: value.origin.federator().cloned(),
             original_sha256: value.original_sha256,
             images: value
                 .images
@@ -51,7 +51,43 @@ impl From<PhotoMeta> for PhotoScheme {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+impl From<PhotoScheme> for PhotoMeta {
+    fn from(value: PhotoScheme) -> Self {
+        let origin = if let Some(federator) = value.federator {
+            PhotoOrigin::Federated(
+                RemoteOrigin {
+                    federator,
+                    identifier: value.id,
+                }
+            )
+        } else {
+            PhotoOrigin::Local(LocalIdentifier(value.id))
+        };
+
+        PhotoMeta {
+            origin,
+            shot_time: chrono::DateTime::parse_from_rfc3339(&value.shot_datetime).unwrap(),
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
+            representative_rgb: {
+                let value: u64 = u64::from_str_radix(&value.representative_color[1..], 16).unwrap();
+                [
+                    ((value & 0xFF0000) >> 16) as u8,
+                    ((value & 0x00FF00) >> 8) as u8,
+                    (value & 0x0000FF) as u8,
+                ]
+            },
+            original: None,
+            original_sha256: value.original_sha256,
+            properties: value.properties.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ImageMetaScheme {
     #[schema(example = "jpg")]
     ext: String,
@@ -72,6 +108,17 @@ impl From<ImageMeta> for ImageMetaScheme {
             width: value.width,
             height: value.height,
             ext: value.extension,
+            mime: value.mime,
+        }
+    }
+}
+
+impl From<ImageMetaScheme> for ImageMeta {
+    fn from(value: ImageMetaScheme) -> Self {
+        Self {
+            width: value.width,
+            height: value.height,
+            extension: value.ext,
             mime: value.mime,
         }
     }
@@ -125,10 +172,29 @@ impl From<Properties> for PropertiesSchema {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+impl From<PropertiesSchema> for Properties {
+    fn from(value: PropertiesSchema) -> Self {
+        Self {
+            machine: value.machine,
+            lens: value.lens,
+            gps_lat_lng: value.gps_lat_lng.and_then(|lnglat|
+                lnglat
+                    .get(0)
+                    .and_then(|lng| lnglat.get(1).map(|lat| (*lng, *lat)))),
+            f_number: value.f_number,
+            shutter_speed: value.shutter_speed.map(|speed| NormalizedRational(speed)),
+            shutter_speed_controlled: value.shutter_speed_controlled,
+            iso: value.iso,
+            focal: value.focal,
+            orientation: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct PhotoReferenceSchema {
-    id: String,
-    federator: Option<String>,
+    id: Identifier,
+    federator: Option<EntityName>,
     year: i32,
     month: u32,
     original_sha256: String,
@@ -142,8 +208,8 @@ impl From<PhotoReference> for PhotoReferenceSchema {
         PhotoReferenceSchema {
             year: value.id().year,
             month: value.id().month,
-            id: value.id().to_string(),
-            federator: value.origin.federator().map(|str| str.to_string()),
+            id: value.id().clone(),
+            federator: value.origin.federator().cloned(),
             original_sha256: value.hash,
             shot_time: value.shot_time.to_rfc3339(),
             images: value
@@ -154,6 +220,42 @@ impl From<PhotoReference> for PhotoReferenceSchema {
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
+            },
+        }
+    }
+}
+
+impl From<PhotoReferenceSchema> for PhotoReference {
+    fn from(value: PhotoReferenceSchema) -> Self {
+        let origin = if let Some(federator) = value.federator {
+            PhotoOrigin::Federated(
+                RemoteOrigin {
+                    federator,
+                    identifier: value.id,
+                }
+            )
+        } else {
+            PhotoOrigin::Local(LocalIdentifier(value.id))
+        };
+
+        PhotoReference {
+            origin,
+            year: value.year,
+            month: value.month,
+            hash: value.original_sha256,
+            shot_time: chrono::DateTime::parse_from_rfc3339(&value.shot_time).unwrap(),
+            images: value
+                .images
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
+            representative_rgb: {
+                let value: u64 = u64::from_str_radix(&value.representative_color[1..], 16).unwrap();
+                [
+                    ((value & 0xFF0000) >> 16) as u8,
+                    ((value & 0x00FF00) >> 8) as u8,
+                    (value & 0x0000FF) as u8,
+                ]
             },
         }
     }

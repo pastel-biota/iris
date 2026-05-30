@@ -14,9 +14,6 @@ use crate::{
     repository::{io::ScopedPath, registry::PhotoStorageRegistry},
 };
 
-#[cfg(feature = "federation")]
-use crate::federation::context::FederationContext;
-
 pub mod config;
 pub mod entry;
 pub mod event;
@@ -28,8 +25,6 @@ pub mod repository;
 pub mod services;
 pub mod util;
 pub mod auth;
-
-#[cfg(feature = "federation")]
 pub mod federation;
 
 pub struct Context {
@@ -40,9 +35,6 @@ pub struct Context {
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
-
-    #[cfg(feature = "federation")]
-    pub federation: FederationContext,
 }
 
 #[tokio::main]
@@ -76,15 +68,11 @@ async fn run() -> Result<(), anyhow::Error> {
     let ingest_scope = ScopedPath::from_allowed_dir(&config.ingest.dir);
 
     let ctx = Arc::new(Context {
-        registry: RwLock::new(PhotoStorageRegistry::new(&ingest_scope)),
-        service: ServiceContext::try_from_config(&config)?,
-        auth: AuthContext::new(config.auth),
+        registry: RwLock::new(PhotoStorageRegistry::new(config.federation, &ingest_scope)),
+        service: ServiceContext::try_from_config(&config.processors)?,
+        auth: AuthContext::new(config.auth, &ingest_scope),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
-
-        #[cfg(feature = "federation")]
-        federation: FederationContext::new(ingest_scope.use_path(), config.federation),
-
         base: config.base,
         event_tx,
     });

@@ -8,15 +8,24 @@ use axum::{
 };
 
 use crate::{
-    Context,
-    ingest::api::scheme::PhotoScheme,
-    infra::api::types::{ClientError, SuccessfulResponse, client_error, success},
-    model::Identifier,
+    Context, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, ingest::api::scheme::PhotoScheme, model::Identifier
 };
 
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct GetPhotoMetaRequest {
+    pub photo_id: Identifier,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct GetPhotoMetaResponse {
-    photo: PhotoScheme,
+    pub photo: PhotoScheme,
+}
+
+pub struct GetPhotoMetaEndpoint;
+impl Endpoint for GetPhotoMetaEndpoint {
+    const PATH: (http::Method, &str) = (http::Method::GET, "/photos/{photo_id}");
+    type Request = GetPhotoMetaRequest;
+    type Response = GetPhotoMetaResponse;
 }
 
 /// Get a photo's meta
@@ -33,6 +42,7 @@ pub struct GetPhotoMetaResponse {
 )]
 pub async fn get_photo_meta(
     State(ctx): State<Arc<Context>>,
+    IrisSession(session): IrisSession,
     Path((photo_id,)): Path<(String,)>,
 ) -> impl IntoResponse {
     let Ok(photo_id) = photo_id.parse::<Identifier>() else {
@@ -43,8 +53,12 @@ pub async fn get_photo_meta(
             .into_response();
     };
 
+    if let Err(err) = whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id) {
+        return (StatusCode::FORBIDDEN, Json(client_error(&err.to_string()))).into_response();
+    }
+
     let mut registry = ctx.registry.write().await;
-    let photo = match registry.load_photo(&photo_id) {
+    let photo = match registry.load_photo(&photo_id).await {
         Ok(photo) => photo,
         Err(err) => {
             return (

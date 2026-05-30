@@ -4,24 +4,13 @@ use axum::{Json, extract::State, response::IntoResponse};
 use http::StatusCode;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{auth::{auth::LoginError, password::Password}, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}};
+use crate::{auth::{auth::LoginError, endpoint, password::Password}, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, model::EntityName};
 
 pub fn auth_route(_ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>> {
     OpenApiRouter::new()
         .routes(routes!(login))
 }
 
-#[derive(Clone, Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct LoginBody {
-    username: String,
-    password: Password,
-}
-
-
-#[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
-pub struct LoginResponse {
-    session_key: String,
-}
 /// Log in to Iris' user
 ///
 /// Issue a new session for Iris to access to the administrative endpoints.
@@ -29,18 +18,18 @@ pub struct LoginResponse {
 #[utoipa::path(
     post,
     path = "/login",
-    request_body(content = LoginBody, content_type = "application/octet-stream"),
+    request_body(content = endpoint::LoginBody, content_type = "application/octet-stream"),
     responses(
-        (status = OK, description = "The user has been successfully logged in and the session is issued", body = SuccessfulResponse<LoginResponse>),
+        (status = OK, description = "The user has been successfully logged in and the session is issued", body = SuccessfulResponse<endpoint::LoginResponse>),
         (status = BAD_REQUEST, description = "The parameter/body was invalid", body = ClientError),
         (status = UNAUTHORIZED, description = "The provided credential is not valid", body = ClientError),
     )
 )]
 async fn login(
     State(ctx): State<Arc<crate::Context>>,
-    Json(login): Json<LoginBody>,
+    Json(login): Json<endpoint::LoginBody>,
 ) -> impl IntoResponse {
-    let login = super::auth::login_to_user(&ctx.auth, &login.username, &login.password).await;
+    let login = super::auth::login_to_user(&ctx.auth, &login.username, &Password::from_string(login.password)).await;
 
     let session_key = match login {
         Ok(key) => key,
@@ -55,7 +44,7 @@ async fn login(
     (
         StatusCode::OK,
         [(http::header::SET_COOKIE, super::protocol::create_cookie(&session_key, &ctx.base.host))],
-        Json(success(LoginResponse { session_key })),
+        Json(success(endpoint::LoginResponse { session_key })),
     )
         .into_response()
 }

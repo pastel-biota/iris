@@ -1,7 +1,10 @@
+use std::pin::Pin;
 #[allow(clippy::disallowed_types)]
 use std::{path::{Path, PathBuf}};
 
+use futures_util::{Stream, TryStreamExt};
 use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 
 #[derive(Clone, Debug)]
 #[allow(clippy::disallowed_types)]
@@ -102,3 +105,24 @@ impl ScopedPath {
     }
 }
 
+// The caller needs to crunch the Stream into this type somehow
+pub type AnyStream = Pin<Box<dyn Stream<Item = std::result::Result<bytes::Bytes, String>> + Send>>;
+
+pub struct LengthedStream {
+    pub stream: AnyStream,
+    pub len: Option<u64>,
+}
+
+impl LengthedStream {
+    pub async fn from_file(file: tokio::fs::File) -> std::io::Result<Self> {
+        let metadata = file.metadata().await?;
+    
+        Ok(Self {
+            stream: Box::pin(
+                ReaderStream::with_capacity(file, 64 * 1024)
+                    .map_err(|error| error.to_string())
+            ),
+            len: Some(metadata.len()),
+        })
+    }
+}

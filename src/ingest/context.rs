@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::ingest::config::IngestConfig;
-use crate::ingest::technicals::image::property::{PropertyContext, create_property_processor_context};
+use crate::ingest::technicals::image::property::{PropertyConfig, PropertyContext, create_property_processor_context};
 
 pub struct IngestContext {
     pub config: IngestConfig,
@@ -17,9 +17,9 @@ pub struct ServiceContext {
 }
 
 impl ServiceContext {
-    pub fn try_from_config(config: &Config) -> Result<ServiceContext, anyhow::Error> {
+    pub fn try_from_config(config: &PropertyConfig) -> Result<ServiceContext, anyhow::Error> {
         Ok(Self {
-            property: create_property_processor_context(&config.processors)?,
+            property: create_property_processor_context(config)?,
         })
     }
 }

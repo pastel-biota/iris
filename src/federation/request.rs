@@ -1,9 +1,5 @@
-use std::sync::Arc;
-
 use http::Extensions;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Middleware, Next};
-
-use crate::federation::auth::{self, ChallengePayload};
 
 pub fn create_client() -> ClientWithMiddleware {
     ClientBuilder::new(reqwest::Client::default())
@@ -21,21 +17,23 @@ impl Middleware for AttachHash {
         ext: &mut Extensions,
         next: Next<'_>,
     ) -> reqwest_middleware::Result<reqwest::Response> {
-        let ctx = ext.get::<Arc<crate::Context>>().unwrap();
+        // TODO: Revive these later
+        //
+        // let ctx = ext.get::<Arc<crate::Context>>().unwrap();
+        //
+        // let private_key = std::fs::read_to_string(ctx.ingest.config.dir.join("federation.sec")).unwrap();
+        // let signed = auth::sign::sign_challenge(
+        //     &ChallengePayload {
+        //         host: &ctx.base.host,
+        //         method: req.method(),
+        //         path_name: req.url().path(),
+        //         query: req.url().query(),
+        //         body: req.body().and_then(|body| body.as_bytes()),
+        //     },
+        //     private_key,
+        // ).unwrap();
 
-        let private_key = std::fs::read_to_string(ctx.ingest.config.dir.join("federation.sec")).unwrap();
-        let signed = auth::sign::sign_challenge(
-            &ChallengePayload {
-                host: &ctx.base.host,
-                method: req.method(),
-                path_name: req.url().path(),
-                query: req.url().query(),
-                body: req.body().and_then(|body| body.as_bytes()),
-            },
-            private_key,
-        ).unwrap();
-
-        req.headers_mut().insert("X-Iris-Signature", signed.parse().unwrap());
+        // req.headers_mut().insert("X-Iris-Signature", signed.parse().unwrap());
 
         next.run(req, ext).await
     }
