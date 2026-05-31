@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::model::{EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, Orientation, PhotoMeta, PhotoOrigin, PhotoReference, Properties, RemoteOrigin, Rotation};
+use crate::model::{EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, PhotoMeta, PhotoOrigin, PhotoReference, Properties, RemoteOrigin};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
@@ -178,11 +178,10 @@ impl From<PropertiesSchema> for Properties {
             machine: value.machine,
             lens: value.lens,
             gps_lat_lng: value.gps_lat_lng.and_then(|lnglat|
-                lnglat
-                    .get(0)
+                lnglat.first()
                     .and_then(|lng| lnglat.get(1).map(|lat| (*lng, *lat)))),
             f_number: value.f_number,
-            shutter_speed: value.shutter_speed.map(|speed| NormalizedRational(speed)),
+            shutter_speed: value.shutter_speed.map(NormalizedRational),
             shutter_speed_controlled: value.shutter_speed_controlled,
             iso: value.iso,
             focal: value.focal,

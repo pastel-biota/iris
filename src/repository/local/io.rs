@@ -1,5 +1,4 @@
 use anyhow::{Context, bail};
-use futures_util::Stream;
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _},
     pin,

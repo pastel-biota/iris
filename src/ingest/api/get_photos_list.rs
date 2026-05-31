@@ -9,7 +9,7 @@ use axum::{
 use http::Method;
 
 use crate::{
-    Context, auth::{extractor::IrisSession, session::Session, whitelist::{self, PagedIdentifiers}}, federation::protocol::Endpoint, infra::api::types::{
+    Context, auth::{extractor::IrisSession, whitelist::{self, PagedIdentifiers}}, federation::protocol::Endpoint, infra::api::types::{
         ClientError, SuccessfulResponse, client_error, success,
     }, ingest::api::scheme::PhotoReferenceSchema, model::Identifier
 };

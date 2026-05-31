@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context as _, bail};
 
-use crate::{model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::io::ScopedPath};
+use crate::{model::{Identifier, ImageMeta, PhotoReference}, repository::io::ScopedPath};
 
 #[derive(Debug)]
 pub struct AllImageIndex {
@@ -74,7 +74,7 @@ impl AllImageIndex {
             .or_default();
 
         if let Some(stored_photo) = month_pics.iter_mut().find(|stored_photo| stored_photo.id() == photo.id()) {
-            *stored_photo = photo.clone().into();
+            *stored_photo = photo.clone();
         } else {
             // figure out where to insert. The array should be sorted by shot_time's asc
             let month_index = month_pics
@@ -82,7 +82,7 @@ impl AllImageIndex {
                 .position(|stored_path| stored_path.shot_time > photo.shot_time)
                 .unwrap_or(month_pics.len());
             index.total_count += 1;
-            month_pics.insert(month_index, photo.clone().into());
+            month_pics.insert(month_index, photo.clone());
         }
 
         self.save()?;

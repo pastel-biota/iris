@@ -1,5 +1,5 @@
 use http::Method;
-use crate::{auth::password::Password, federation::protocol::Endpoint, model::EntityName};
+use crate::{federation::protocol::Endpoint, model::EntityName};
 
 pub struct LoginEndpoint;
 

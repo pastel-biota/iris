@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, model::EntityName};
+use crate::{Context, infra::api::types::{ClientError, SuccessfulResponse, success}, model::EntityName};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct SyncResponse {

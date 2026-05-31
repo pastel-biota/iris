@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 
-use futures_util::{Stream, TryStreamExt};
-use reqwest_middleware::ClientWithMiddleware;
-
-use crate::{auth::endpoint::{LoginBody, LoginEndpoint}, federation, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::FederationConfig, io::{LengthedStream, ScopedPath}}};
+use crate::{auth::endpoint::{LoginBody, LoginEndpoint}, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::FederationConfig, io::LengthedStream}};
 
 pub struct FederatedPhotoIndex {
-    client: ClientWithMiddleware,
     pub config: FederationConfig,
     session: HashMap<EntityName, String>,
 }
@@ -21,7 +17,6 @@ pub struct PagedPhotoRefList {
 impl FederatedPhotoIndex {
     pub fn new(config: FederationConfig) -> Self {
         Self {
-            client: crate::federation::request::create_client(),
             config,
             session: Default::default(),
         }

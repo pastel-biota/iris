@@ -4,7 +4,7 @@ use axum::{Json, extract::State, response::IntoResponse};
 use http::StatusCode;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{auth::{auth::LoginError, endpoint, password::Password}, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, model::EntityName};
+use crate::{auth::{auth::LoginError, endpoint, password::Password}, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}};
 
 pub fn auth_route(_ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>> {
     OpenApiRouter::new()

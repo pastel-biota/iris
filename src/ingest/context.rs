@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::ingest::config::IngestConfig;
 use crate::ingest::technicals::image::property::{PropertyConfig, PropertyContext, create_property_processor_context};
 

@@ -5,7 +5,7 @@ use axum::{
     http::{request::Parts, StatusCode},
 };
 
-use crate::auth::{protocol::{extract_from_cookie, extract_from_header}, session::{Session, ValidSession}};
+use crate::auth::{protocol::{extract_from_cookie, extract_from_header}, session::Session};
 
 pub struct IrisSession(pub Session);
 

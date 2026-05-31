@@ -3,7 +3,7 @@ use image::{DynamicImage, ImageReader, metadata::Orientation as OrientationMetad
 
 use anyhow::bail;
 
-use crate::{Context, model::{ImageMeta, Orientation, PhotoMeta, Rotation}, processor::{config::ResizeTargets, protocol::ImageProcessJob}, services::image::resize::ResizeResult};
+use crate::{Context, model::{Orientation, PhotoMeta, Rotation}, processor::{config::ResizeTargets, protocol::ImageProcessJob}, services::image::resize::ResizeResult};
 
 #[tracing::instrument(level = "debug", skip_all, fields(
     photo_id = job.photo_id.to_string(),
@@ -86,6 +86,6 @@ fn check_already_processed(photo: &PhotoMeta, target: &ResizeTargets, image_id: 
         return ControlFlow::Continue("The size is not the same with the target");
     }
 
-    return ControlFlow::Break(());
+    ControlFlow::Break(())
 }
 

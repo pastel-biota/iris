@@ -1,4 +1,4 @@
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     Json,
@@ -6,7 +6,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use image::ImageReader;
 
 use crate::{
     Context, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, client_error, success}, model::Identifier

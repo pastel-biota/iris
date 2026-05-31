@@ -13,7 +13,7 @@ pub struct AttachHash;
 impl Middleware for AttachHash {
     async fn handle(
         &self,
-        mut req: reqwest::Request,
+        req: reqwest::Request,
         ext: &mut Extensions,
         next: Next<'_>,
     ) -> reqwest_middleware::Result<reqwest::Response> {

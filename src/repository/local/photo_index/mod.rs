@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 
-use crate::{model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::io::ScopedPath};
+use crate::{model::{Identifier, ImageMeta, PhotoReference}, repository::io::ScopedPath};
 
 use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
 

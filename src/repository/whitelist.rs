@@ -1,8 +1,7 @@
-use std::collections::{HashMap, HashSet};
 
 use anyhow::Context as _;
 
-use crate::{model::{EntityName, Identifier, Whitelist}, repository::io::ScopedPath};
+use crate::{model::{EntityName, Whitelist}, repository::io::ScopedPath};
 
 pub struct WhitelistRepository {
     base_dir: ScopedPath,

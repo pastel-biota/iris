@@ -42,7 +42,7 @@ pub fn get_allowed_photos(ctx: &AuthContext, session: &Session, size: usize, cur
         return Ok(None);
     };
 
-    let mut paged_pics = if let Some(cursor) = &cursor {
+    let paged_pics = if let Some(cursor) = &cursor {
         pics.iter()
             .skip_while(|id| &cursor != id)
             .skip(1)

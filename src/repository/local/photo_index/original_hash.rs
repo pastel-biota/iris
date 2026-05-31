@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context as _, bail};
 
 use crate::{
-    model::{Identifier, ImageMeta, PhotoMeta, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
+    model::{Identifier, ImageMeta, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
 };
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl PhotoIndexProvider for OriginalSha256Index {
 
         let replaced = index
             .pics
-            .insert(photo.hash.clone(), photo.clone().into());
+            .insert(photo.hash.clone(), photo.clone());
 
         if replaced.is_none() {
             index.total_count += 1;

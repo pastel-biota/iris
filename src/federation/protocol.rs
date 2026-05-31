@@ -1,11 +1,10 @@
-use std::sync::Arc;
 
 use anyhow::{Context, bail};
-use futures_util::{Stream, TryStreamExt};
-use http::{HeaderName, Method, header};
+use futures_util::TryStreamExt;
+use http::{Method, header};
 use serde_json::Value;
 
-use crate::{auth::session, infra::api::types::IrisResponse, ingest::api::scheme::PhotoScheme, model::Identifier, repository::io::LengthedStream};
+use crate::{infra::api::types::IrisResponse, repository::io::LengthedStream};
 
 #[derive(Debug)]
 pub enum RequestError {
@@ -150,7 +149,7 @@ fn to_param(url: &str, query: impl serde::Serialize) -> anyhow::Result<String> {
 
         let url_tag = format!("{{{key}}}");
         if url.contains(&url_tag) {
-            url = url.replace(&url_tag, &value.to_string());
+            url = url.replace(&url_tag, value.as_ref());
         } else {
             query_strs.push(format!("{}={}", key, value));
         }
