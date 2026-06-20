@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context as _, bail};
 
 use crate::{
-    model::{Identifier, ImageMeta, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
+    model::{Identifier, ImageMeta, PhotoOrigin, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
 };
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl Default for IndexEntry {
 #[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
 pub struct IndexEntryV1 {
     total_count: u32,
-    pics: HashMap<String, PhotoReference>,
+    pics: HashMap<String, PhotoOrigin>,
 }
 
 impl PhotoIndexProvider for OriginalSha256Index {
@@ -39,34 +39,11 @@ impl PhotoIndexProvider for OriginalSha256Index {
 
         let replaced = index
             .pics
-            .insert(photo.hash.clone(), photo.clone());
+            .insert(photo.hash.to_string(), photo.origin.clone());
 
         if replaced.is_none() {
             index.total_count += 1;
         }
-
-        self.save()?;
-
-        Ok(())
-    }
-
-    fn add_new_image(
-        &mut self,
-        photo_id: &Identifier,
-        image_id: &str,
-        image: &ImageMeta,
-    ) -> anyhow::Result<()> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        let photo = index
-            .pics
-            .values_mut()
-            .find(|photo| photo.id() == photo_id)
-            .context("The image was not found")?;
-
-        photo
-            .images
-            .insert(image_id.to_string(), image.clone());
 
         self.save()?;
 
@@ -87,7 +64,7 @@ impl OriginalSha256Index {
         }
     }
 
-    pub fn get_photo_ref(&mut self, id: &Identifier) -> anyhow::Result<Option<&PhotoReference>> {
+    pub fn get_photo_origin(&mut self, id: &Identifier) -> anyhow::Result<Option<&PhotoOrigin>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         Ok(index.pics
@@ -104,7 +81,7 @@ impl OriginalSha256Index {
     pub fn list_photos_from_ids_list(
         &mut self,
         ids: &[Identifier],
-    ) -> anyhow::Result<Vec<&PhotoReference>> {
+    ) -> anyhow::Result<Vec<&PhotoOrigin>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         // FIXME: This is O(n^2)! 
@@ -117,7 +94,7 @@ impl OriginalSha256Index {
     pub fn get_photos_list_from_hashes_list<'s, 'h>(
         &'s mut self,
         hashes: &'h [String],
-    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoOrigin>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
         Ok(hashes

@@ -61,7 +61,7 @@ impl FromStr for Identifier {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LocalIdentifier(pub Identifier);
 
 impl Display for LocalIdentifier {

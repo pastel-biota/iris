@@ -107,6 +107,6 @@ async fn retrieve_from_provided_list(
     Ok(GetPhotosListResponse {
         total_count: ids.total_count,
         next_cursor: ids.next_cursor,
-        photos: photos.into_iter().cloned().map(Into::into).collect(),
+        photos: photos.into_iter().map(Into::into).collect(),
     })
 }

@@ -44,10 +44,10 @@ impl PhotoStorageRegistry {
         self.local_index.list_images(beginning, size)
     }
 
-    pub fn get_photos_list_by_id_list<'s>(
-        &'s mut self,
+    pub fn get_photos_list_by_id_list(
+        &mut self,
         ids: &[Identifier],
-    ) -> anyhow::Result<Vec<&'s PhotoReference>> {
+    ) -> anyhow::Result<Vec<PhotoReference>> {
         self.local_index.get_photos_list_by_ids_list(ids)
     }
 
@@ -199,7 +199,7 @@ impl PhotoStorageRegistry {
             .await?;
 
         photo.images.insert(image_id.to_string(), image.clone());
-        self.local_index.add_new_image(photo_id, image_id, image)?;
+        self.local_index.add_new_image(&local_id, image_id, image)?;
 
         Ok(meta)
     }
