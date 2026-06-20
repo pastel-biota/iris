@@ -1,13 +1,18 @@
 use crate::ingest::config::IngestConfig;
 use crate::ingest::technicals::image::property::{PropertyConfig, PropertyContext, create_property_processor_context};
+use crate::ingest::technicals::stream::SizedStream;
 
 pub struct IngestContext {
     pub config: IngestConfig,
+    pub sized_sream: SizedStream,
 }
 
 impl IngestContext {
     pub fn new(config: IngestConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            sized_sream: SizedStream::new(),
+        }
     }
 }
 

@@ -7,16 +7,18 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use futures_util::TryStreamExt;
+use http::request::Parts;
 
 use crate::{
     Context, api::error::ApiError, auth::extractor::IrisSession, event::Event, infra::api::types::{
         BinaryBody, ClientError, SuccessfulResponse, success,
     }, ingest::{
         api::scheme::PhotoScheme,
-        technicals::image::{
+        technicals::{image::{
             process::{get_hash, process_image},
             property::process_properties,
-        },
+        }, stream::SizedStream},
     }, model::Identifier, repository::registry::NewPhotoParam,
 };
 
@@ -53,13 +55,24 @@ pub const MAX_BODY: usize = 100 * 1024 * 1024;
 pub async fn new_photo(
     State(ctx): State<Arc<Context>>,
     IrisSession(_): IrisSession,
+    parts: Parts,
     body: Body
 ) -> Result<impl IntoResponse, ApiError> {
-    let bytes = to_bytes(body, MAX_BODY).await.map_err(|_| {
-        ApiError::PayloadTooLarge(format!(
-            "The file size is restricted to under {MAX_BODY} bytes"
-        ))
-    })?;
+    let Some(length) = parts.headers
+        .get(http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<usize>().ok())
+    else {
+        return Err(ApiError::BadRequest("Content-Length needs to be provided".to_owned()));
+    };
+
+    let received = ctx.ingest.sized_sream
+        .receive_stream(length, body.into_data_stream())
+        .await
+        .map_err(ApiError::internal_during("reading the body content"))?;
+    let content = received.read().await
+        .map_err(ApiError::internal_during("reading the body content"))?;
+    let bytes = &content.bytes;
 
     tracing::info!("Beginning registeration");
 

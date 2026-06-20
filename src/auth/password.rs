@@ -94,7 +94,6 @@ pub fn hash_password(password: &Password) -> anyhow::Result<HashedPassword> {
 }
 
 pub fn verify_password(password: &Password, hash: Option<&HashedPassword>) -> anyhow::Result<bool> {
-    println!("Verifying");
     Ok(bcrypt::verify(&password.0, &hash.as_ref().unwrap_or(&&*DUMMY_HASH).0)?)
 }
 
