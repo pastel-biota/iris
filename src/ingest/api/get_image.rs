@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{
-    Context, api::{error::ApiError, extract::parse_identifier, header::immutable_asset}, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError}, model::Identifier
+    Context, api::{error::ApiError, header::immutable_asset}, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError}, model::Identifier
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -44,10 +44,8 @@ impl Endpoint for GetImageEndpoint {
 pub async fn get_image(
     State(ctx): State<Arc<Context>>,
     IrisSession(session): IrisSession,
-    Path((photo_id, image_id)): Path<(String, String)>,
+    Path((photo_id, image_id)): Path<(Identifier, String)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let photo_id = parse_identifier(&photo_id)?;
-
     whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 

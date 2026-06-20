@@ -9,7 +9,7 @@ use axum::{
 
 use crate::{
     Context,
-    api::{extract::parse_identifier, error::ApiError},
+    api::error::ApiError,
     auth::{extractor::IrisSession, whitelist},
     federation::protocol::Endpoint,
     infra::api::types::{ClientError, SuccessfulResponse, success},
@@ -49,10 +49,8 @@ impl Endpoint for GetPhotoMetaEndpoint {
 pub async fn get_photo_meta(
     State(ctx): State<Arc<Context>>,
     IrisSession(session): IrisSession,
-    Path((photo_id,)): Path<(String,)>,
+    Path((photo_id,)): Path<(Identifier,)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let photo_id = parse_identifier(&photo_id)?;
-
     whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 

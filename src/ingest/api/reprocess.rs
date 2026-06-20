@@ -8,7 +8,7 @@ use axum::{
 };
 
 use crate::{
-    Context, api::{extract::parse_identifier, error::ApiError}, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, success}
+    Context, api::error::ApiError, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, success}, model::Identifier
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -34,10 +34,8 @@ pub struct ReprocessResponse;
 pub async fn reprocess(
     State(ctx): State<Arc<Context>>,
     _: IrisSession,
-    Path((photo_id,)): Path<(String,)>,
+    Path((photo_id,)): Path<(Identifier,)>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let photo_id = parse_identifier(&photo_id)?;
-
     tracing::debug!("Loading the image");
 
     let photo = {
