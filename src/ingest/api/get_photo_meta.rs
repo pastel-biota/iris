@@ -8,7 +8,13 @@ use axum::{
 };
 
 use crate::{
-    Context, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{ClientError, SuccessfulResponse, client_error, success}, ingest::api::scheme::PhotoScheme, model::Identifier
+    Context,
+    api::{extract::parse_identifier, error::ApiError},
+    auth::{extractor::IrisSession, whitelist},
+    federation::protocol::Endpoint,
+    infra::api::types::{ClientError, SuccessfulResponse, success},
+    ingest::api::scheme::PhotoScheme,
+    model::Identifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -44,46 +50,26 @@ pub async fn get_photo_meta(
     State(ctx): State<Arc<Context>>,
     IrisSession(session): IrisSession,
     Path((photo_id,)): Path<(String,)>,
-) -> impl IntoResponse {
-    let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(client_error("Photo id is not valid as the Id")),
-        )
-            .into_response();
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let photo_id = parse_identifier(&photo_id)?;
 
-    if let Err(err) = whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id) {
-        return (StatusCode::FORBIDDEN, Json(client_error(&err.to_string()))).into_response();
-    }
+    whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
+        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
     let mut registry = ctx.registry.write().await;
-    let photo = match registry.load_photo(&photo_id).await {
-        Ok(photo) => photo,
-        Err(err) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during reading the photo metafile: {:#?}",
-                    err
-                ))),
-            )
-                .into_response();
-        }
-    };
+    let photo = registry
+        .load_photo(&photo_id)
+        .await
+        .map_err(ApiError::internal_during("reading the photo metafile"))?
+        .ok_or(ApiError::NotFound(
+            "the photo with the ID is not found".to_string(),
+        ))?;
 
-    let Some(photo) = photo else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(client_error("the photo with the ID is not found")),
-        )
-            .into_response();
-    };
     let photo = PhotoScheme::from(photo);
 
-    (
+    Ok((
         StatusCode::OK,
         Json(success(GetPhotoMetaResponse { photo })),
     )
-        .into_response()
+        .into_response())
 }

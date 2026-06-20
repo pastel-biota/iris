@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, infra::api::types::{ClientError, SuccessfulResponse, success}, model::EntityName};
+use crate::{Context, api::error::ApiError, infra::api::types::{ClientError, SuccessfulResponse, success}, model::EntityName};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct SyncResponse {
@@ -26,9 +26,12 @@ pub struct SyncResponse {
 pub async fn sync(
     State(ctx): State<Arc<Context>>,
     Path((name,)): Path<(EntityName,)>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ApiError> {
     let mut registry = ctx.registry.write().await;
-    registry.sync_image_list(&name).await.unwrap();
+    registry
+        .sync_image_list(&name)
+        .await
+        .map_err(ApiError::internal_during("synchronizing the image list"))?;
 
-    (StatusCode::OK, Json(success(SyncResponse {}))).into_response()
+    Ok((StatusCode::OK, Json(success(SyncResponse {}))))
 }

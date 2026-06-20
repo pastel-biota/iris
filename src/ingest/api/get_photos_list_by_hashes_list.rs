@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
-    Context, auth::extractor::IrisSession, infra::api::types::{
-        ClientError, SuccessfulResponse, client_error, success,
+    Context, api::error::ApiError, auth::extractor::IrisSession, infra::api::types::{
+        ClientError, SuccessfulResponse, success,
     }, ingest::api::scheme::PhotoReferenceSchema
 };
 
@@ -51,23 +51,12 @@ pub async fn get_photos_list_by_hashes_list(
     State(ctx): State<Arc<Context>>,
     IrisSession(_): IrisSession,
     Json(param): Json<GetPhotosListByHashesListParam>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ApiError> {
     let mut registry = ctx.registry.write().await;
 
-    let photos = registry.get_photos_list_by_hashes_list(param.hashes.as_slice());
-    let photos = match photos {
-        Ok(photos) => photos,
-        Err(err) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "There was an error during searching photos from hashes: {}",
-                    err
-                ))),
-            )
-                .into_response();
-        }
-    };
+    let photos = registry
+        .get_photos_list_by_hashes_list(param.hashes.as_slice())
+        .map_err(ApiError::internal_during("searching photos from hashes"))?;
 
     let photos = photos
         .into_iter()
@@ -76,5 +65,5 @@ pub async fn get_photos_list_by_hashes_list(
 
     let response = GetPhotosListByHashesListResponse { photos };
 
-    (StatusCode::OK, Json(success(response))).into_response()
+    Ok((StatusCode::OK, Json(success(response))).into_response())
 }

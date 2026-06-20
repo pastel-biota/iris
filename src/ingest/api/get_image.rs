@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use axum::{
-    Json, body::Body, extract::{Path, State}, http::{StatusCode, header}, response::IntoResponse
+    body::Body, extract::{Path, State}, http::StatusCode, response::IntoResponse
 };
-use http::{HeaderMap, HeaderValue};
 
 use crate::{
-    Context, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError, client_error}, model::Identifier
+    Context, api::{error::ApiError, extract::parse_identifier, header::immutable_asset}, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError}, model::Identifier
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -46,82 +45,35 @@ pub async fn get_image(
     State(ctx): State<Arc<Context>>,
     IrisSession(session): IrisSession,
     Path((photo_id, image_id)): Path<(String, String)>,
-) -> impl IntoResponse {
-    let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(client_error("Photo id is not valid as the Id")),
-        )
-            .into_response();
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let photo_id = parse_identifier(&photo_id)?;
 
-    if let Err(err) = whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id) {
-        return (StatusCode::FORBIDDEN, Json(client_error(&err.to_string()))).into_response();
-    }
+    whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
+        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
     let mut registry = ctx.registry.write().await;
-    let photo = match registry.load_photo(&photo_id).await {
-        Ok(photo) => photo,
-        Err(err) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during reading the photo metafile: {:#?}",
-                    err
-                ))),
-            )
-                .into_response();
-        }
-    };
+    let photo = registry
+        .load_photo(&photo_id)
+        .await
+        .map_err(ApiError::internal_during("reading the photo metafile"))?
+        .ok_or(ApiError::NotFound(
+            "the photo with the ID is not found".to_string(),
+        ))?;
 
-    let Some(photo) = photo else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(client_error("the photo with the ID is not found")),
-        )
-            .into_response();
-    };
+    let image_meta = photo.images.get(&image_id).ok_or(ApiError::NotFound(
+        "the photo was found, but the image with the ID is not found".to_string(),
+    ))?;
 
-    let Some(image_meta) = photo.images.get(&image_id) else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(client_error(
-                "the photo was found, but the image with the ID is not found",
-            )),
-        )
-            .into_response();
-    };
+    let photo_stream = registry
+        .load_image(&photo_id, &image_id, image_meta)
+        .await
+        .map_err(ApiError::internal_during("reading the image payload"))?;
 
-    let photo_stream = match registry.load_image(&photo_id, &image_id, image_meta).await {
-        Ok(photo) => photo,
-        Err(err) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during reading the photo metafile: {:#?}",
-                    err
-                ))),
-            )
-                .into_response();
-        }
-    };
+    let headers = immutable_asset(&image_meta.mime, photo_stream.len)?;
 
-    let mut headers = HeaderMap::<HeaderValue>::from_iter([
-        (header::CONTENT_TYPE, image_meta.mime.as_str().try_into().unwrap()),
-        (header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=2592000, immutable")),
-    ]);
-
-    if let Some(len) = photo_stream.len {
-        headers.insert(
-            header::CONTENT_LENGTH,
-            (&len.to_string()).try_into().unwrap(),
-        );
-    }
-
-    (
+    Ok((
         StatusCode::OK,
         headers,
         Body::from_stream(photo_stream.stream),
-    )
-        .into_response()
+    ))
 }

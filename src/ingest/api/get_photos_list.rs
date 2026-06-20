@@ -4,13 +4,13 @@ use axum::{
     Json,
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
 };
 use http::Method;
 
 use crate::{
-    Context, auth::{extractor::IrisSession, whitelist::{self, PagedIdentifiers}}, federation::protocol::Endpoint, infra::api::types::{
-        ClientError, SuccessfulResponse, client_error, success,
+    Context, api::error::ApiError, auth::{extractor::IrisSession, whitelist::{self, PagedIdentifiers}}, federation::protocol::Endpoint, infra::api::types::{
+        ClientError, SuccessfulResponse, success,
     }, ingest::api::scheme::PhotoReferenceSchema, model::Identifier
 };
 
@@ -51,62 +51,35 @@ pub async fn get_photos_list(
     State(ctx): State<Arc<Context>>,
     IrisSession(session): IrisSession,
     Query(query): Query<GetPhotosListQuery>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, ApiError> {
     let cursor = query.cursor;
-    let size = query.size.unwrap_or(50).try_into().unwrap();
+    let size = query.size.unwrap_or(50) as usize;
 
-    let photo_ids = match whitelist::get_allowed_photos(&ctx.auth, &session, size, cursor.clone()) {
-        Ok(ids) => ids,
-        Err(err) => {
-            return (StatusCode::FORBIDDEN, Json(client_error(&err.to_string()))).into_response();
-        }
-    };
+    let photo_ids = whitelist::get_allowed_photos(&ctx.auth, &session, size, cursor.clone())
+        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
-    let list_result = if let Some(ids) = photo_ids {
-        retrieve_from_provided_list(ctx, ids).await
+    let list = if let Some(ids) = photo_ids {
+        retrieve_from_provided_list(ctx, ids).await?
     } else {
-        retrieve_from_whole_set(ctx.clone(), cursor.clone(), size).await
+        retrieve_from_whole_set(ctx.clone(), cursor.clone(), size).await?
     };
 
-    match list_result {
-        Ok(list) => (StatusCode::OK, Json(success(list))).into_response(),
-        Err(err) => err.into_response(),
-    }
+    Ok((StatusCode::OK, Json(success(list))))
 }
 
 async fn retrieve_from_whole_set(
     ctx: Arc<Context>,
     cursor: Option<Identifier>,
     size: usize,
-) -> Result<GetPhotosListResponse, Response> {
+) -> Result<GetPhotosListResponse, ApiError> {
     let mut registry = ctx.registry.write().await;
-    let photos = match registry.list_images(cursor.as_ref(), size) {
-        Ok(photo) => photo,
-        Err(err) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during read the photo: {:#?}",
-                    err
-                ))),
-            )
-                .into_response());
-        }
-    };
+    let photos = registry
+        .list_images(cursor.as_ref(), size)
+        .map_err(ApiError::internal_during("reading the photo list"))?;
 
-    let total_count = match registry.total_count() {
-        Ok(total_count) => total_count,
-        Err(err) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during read the photo: {:#?}",
-                    err
-                ))),
-            )
-                .into_response());
-        }
-    };
+    let total_count = registry
+        .total_count()
+        .map_err(ApiError::internal_during("reading the total count"))?;
 
     let next_cursor = if photos.len() == size {
         photos.last().map(|photo| photo.id())
@@ -124,22 +97,12 @@ async fn retrieve_from_whole_set(
 async fn retrieve_from_provided_list(
     ctx: Arc<Context>,
     ids: PagedIdentifiers,
-) -> Result<GetPhotosListResponse, Response> {
+) -> Result<GetPhotosListResponse, ApiError> {
     let mut registry = ctx.registry.write().await;
 
-    let photos = match registry.get_photos_list_by_id_list(&ids.ids) {
-        Ok(photo) => photo,
-        Err(err) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(client_error(&format!(
-                    "there was an internal error during read the photo: {:#?}",
-                    err
-                ))),
-            )
-                .into_response());
-        }
-    };
+    let photos = registry
+        .get_photos_list_by_id_list(&ids.ids)
+        .map_err(ApiError::internal_during("reading the photo list"))?;
 
     Ok(GetPhotosListResponse {
         total_count: ids.total_count,

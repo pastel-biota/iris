@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
+use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, auth::extractor::IrisSession, infra::api::types::{ClientError, client_error}, model::Identifier};
+use crate::{Context, api::{extract::parse_identifier, error::ApiError}, auth::extractor::IrisSession, infra::api::types::ClientError};
 
 /// A new field
 ///
@@ -28,17 +28,13 @@ pub async fn delete(
     State(ctx): State<Arc<Context>>,
     Path((photo_id,)): Path<(String,)>,
     IrisSession(_): IrisSession,
-) -> impl IntoResponse {
-    let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(client_error("Photo id is not valid as the Id")),
-        )
-            .into_response();
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let photo_id = parse_identifier(&photo_id)?;
 
     let mut registry = ctx.registry.write().await;
-    registry.unregister(&photo_id).unwrap();
+    registry
+        .unregister(&photo_id)
+        .map_err(ApiError::internal_during("unregistering the photo"))?;
 
-    (StatusCode::NO_CONTENT).into_response()
+    Ok(StatusCode::NO_CONTENT)
 }

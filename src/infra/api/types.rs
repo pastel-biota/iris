@@ -33,7 +33,7 @@ pub fn success<T>(reason: T) -> SuccessfulResponse<T> {
     }
 }
 
-pub fn client_error(reason: &str) -> ClientError {
+pub fn client_error(reason: impl ToString) -> ClientError {
     ClientError {
         status: "error",
         reason: reason.to_string(),

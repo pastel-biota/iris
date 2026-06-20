@@ -8,7 +8,7 @@ use axum::{
 };
 
 use crate::{
-    Context, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, client_error, success}, model::Identifier
+    Context, api::{extract::parse_identifier, error::ApiError}, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, success}
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -33,48 +33,31 @@ pub struct ReprocessResponse;
 )]
 pub async fn reprocess(
     State(ctx): State<Arc<Context>>,
-    _: IrisSession, 
+    _: IrisSession,
     Path((photo_id,)): Path<(String,)>,
-) -> impl IntoResponse {
-    let Ok(photo_id) = photo_id.parse::<Identifier>() else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(client_error("Photo id is not valid as the Id")),
-        )
-            .into_response();
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let photo_id = parse_identifier(&photo_id)?;
 
     tracing::debug!("Loading the image");
 
     let photo = {
         let mut registry = ctx.registry.write().await;
-        match registry.load_photo(&photo_id).await {
-            Ok(photo) => photo,
-            Err(err) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(client_error(&format!(
-                        "there was an internal error during reading the photo metafile: {:#?}",
-                        err
-                    ))),
-                )
-                    .into_response();
-            }
-        }
+        registry
+            .load_photo(&photo_id)
+            .await
+            .map_err(ApiError::internal_during("reading the photo metafile"))?
     };
 
-    let Some(_photo) = photo else {
-        return (
-            StatusCode::NOT_FOUND,
-            Json(client_error("the photo with the ID is not found")),
-        )
-            .into_response();
-    };
+    if photo.is_none() {
+        return Err(ApiError::NotFound(
+            "the photo with the ID is not found".to_string(),
+        ));
+    }
 
     ctx.event_tx
         .send(Event::PhotoReprocessRequested { photo_id: photo_id.clone() })
         .await
-        .unwrap();
+        .map_err(ApiError::internal_during("queueing the reprocess event"))?;
 
-    (StatusCode::CREATED, Json(success(ReprocessResponse))).into_response()
+    Ok((StatusCode::CREATED, Json(success(ReprocessResponse))))
 }

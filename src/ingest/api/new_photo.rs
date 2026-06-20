@@ -9,8 +9,8 @@ use axum::{
 };
 
 use crate::{
-    Context, auth::extractor::IrisSession, event::Event, infra::api::types::{
-        BinaryBody, ClientError, SuccessfulResponse, client_error, success,
+    Context, api::error::ApiError, auth::extractor::IrisSession, event::Event, infra::api::types::{
+        BinaryBody, ClientError, SuccessfulResponse, success,
     }, ingest::{
         api::scheme::PhotoScheme,
         technicals::image::{
@@ -54,18 +54,12 @@ pub async fn new_photo(
     State(ctx): State<Arc<Context>>,
     IrisSession(_): IrisSession,
     body: Body
-) -> impl IntoResponse {
-    let bytes = to_bytes(body, MAX_BODY).await.unwrap();
-
-    if bytes.len() == MAX_BODY {
-        return (
-            StatusCode::PAYLOAD_TOO_LARGE,
-            Json(client_error(&format!(
-                "The file size is restricted to under {MAX_BODY} bytes"
-            ))),
-        )
-            .into_response();
-    }
+) -> Result<impl IntoResponse, ApiError> {
+    let bytes = to_bytes(body, MAX_BODY).await.map_err(|_| {
+        ApiError::PayloadTooLarge(format!(
+            "The file size is restricted to under {MAX_BODY} bytes"
+        ))
+    })?;
 
     tracing::info!("Beginning registeration");
 
@@ -76,13 +70,19 @@ pub async fn new_photo(
         let mut registry = ctx.registry.write().await;
         tracing::debug!("Retrieved registry");
 
-        if registry.image_exists_with_hash(&sha256).unwrap() {
-            return (StatusCode::CONFLICT, Json(client_error("hash conflicted"))).into_response();
+        if registry
+            .image_exists_with_hash(&sha256)
+            .map_err(ApiError::internal_during("checking the hash conflict"))?
+        {
+            return Err(ApiError::Conflict("hash conflicted".to_string()));
         }
     }
 
-    let processed = process_image(bytes.clone()).await.unwrap();
-    let properties = process_properties(&ctx.service.property, processed.image_property).unwrap();
+    let processed = process_image(bytes.clone())
+        .await
+        .map_err(ApiError::internal_during("processing the image"))?;
+    let properties = process_properties(&ctx.service.property, processed.image_property)
+        .map_err(ApiError::internal_during("processing the image properties"))?;
 
     let photo_id = Identifier::new(&processed.shot_time, &ulid::Ulid::new().to_string());
 
@@ -99,11 +99,13 @@ pub async fn new_photo(
 
     let new_photo = {
         let mut registry = ctx.registry.write().await;
-        let new_photo = registry.new_photo(new_photo).unwrap();
+        let new_photo = registry
+            .new_photo(new_photo)
+            .map_err(ApiError::internal_during("registering the photo"))?;
         registry
             .upload_original_image(&photo_id, &original_ext, &bytes)
             .await
-            .unwrap();
+            .map_err(ApiError::internal_during("uploading the original image"))?;
 
         new_photo
     };
@@ -111,11 +113,11 @@ pub async fn new_photo(
     ctx.event_tx
         .send(Event::PhotoRegistered { photo_id: photo_id.clone() })
         .await
-        .unwrap();
+        .map_err(ApiError::internal_during("queueing the registration event"))?;
 
     let response = NewPhotoResponse {
         photo: new_photo.into(),
     };
 
-    (StatusCode::CREATED, Json(success(response))).into_response()
+    Ok((StatusCode::CREATED, Json(success(response))))
 }

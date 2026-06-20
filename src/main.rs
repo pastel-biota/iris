@@ -26,6 +26,7 @@ pub mod services;
 pub mod util;
 pub mod auth;
 pub mod federation;
+pub mod api;
 
 pub struct Context {
     pub base: BaseConfig,
