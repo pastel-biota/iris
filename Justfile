@@ -1,3 +1,9 @@
+run-source:
+  RUST_LOG=${RUST_LOG:-iris=debug} cargo r -- -c ./_ignored/source/iris.toml -c ./_ignored/source/iris.secret.toml server
+
+run-receiver:
+  RUST_LOG=${RUST_LOG:-iris=debug} cargo r -- -c ./_ignored/receiver/iris.toml server
+
 new-route NAME:
   pnpm exec scaffdog generate new-route -fa name:{{ NAME }} > /dev/null
 
