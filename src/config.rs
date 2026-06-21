@@ -3,11 +3,12 @@
 // paths cross into `ScopedPath` at the point they are used for I/O.
 #![allow(clippy::disallowed_types)]
 
-use std::path::PathBuf;
+use std::{collections::{HashSet, VecDeque}, path::{Path, PathBuf}};
 
 use anyhow::Context;
 use clap::Parser;
 use config::Config as ConfigLoad;
+use rand::seq::IndexedRandom;
 use serde::Deserialize;
 
 use crate::{
@@ -91,6 +92,7 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub processors: PropertyConfig,
     pub image: ImageProcessConfig,
+    #[serde(default)]
     pub federation: FederationConfig,
 }
 
@@ -111,7 +113,8 @@ pub enum Command {
     User(UserOptions),
 } 
 
-pub fn parse_config() -> anyhow::Result<Entry> { let args = Args::parse();
+pub fn parse_config() -> anyhow::Result<Entry> {
+    let args = Args::parse();
     let (command, config) = match args.command {
         SubCommands::Server { config } => {
             (Command::Server, config)
@@ -121,20 +124,66 @@ pub fn parse_config() -> anyhow::Result<Entry> { let args = Args::parse();
         }
     };
 
-    let mut builder = ConfigLoad::builder();
+
+    let mut importing: VecDeque<PathBuf> = VecDeque::new();
+    let mut known_files: HashSet<PathBuf> = HashSet::new();
 
     if let Some(configs) = args.config.merge(config).configs {
-        for config in configs {
-            builder = builder.add_source(config::File::with_name(&config));
-        }
+        importing.extend(configs.iter().map(|x| PathBuf::from(x)));
     } else {
-        builder = builder.add_source(config::File::with_name("iris.toml"))
+        importing.push_back(PathBuf::from("iris.toml"));
     }
 
-    let config = builder
-        .add_source(config::Environment::with_prefix("IRIS_CONFIG"))
-        .build()
-        .context("The config could not be read")?
+    tracing::trace!("Initial: {:?}", importing);
+
+    let mut loaded_config: Option<config::Config> = None;
+    while let Some(file_name) = importing.pop_front() {
+        tracing::trace!("Popping the {}", file_name.display());
+        // tracing::trace!("Left: {:?}", importing);
+
+
+        let mut builder = config::Config::builder()
+            .add_source(config::File::with_name(file_name.as_os_str().to_str().unwrap()));
+
+        if let Some(loaded_config) = loaded_config.take() {
+            builder = builder
+                .add_source(loaded_config);
+        }
+
+        let config = builder.build()
+            .with_context(|| format!("Error during parsing {}", file_name.display()))?;
+
+        if let Ok(import) = config.get_array("import") {
+            for import_value in import {
+                let config::ValueKind::String(path) = &import_value.kind else {
+                    anyhow::bail!("While reading {} - the import should be specified with the string", file_name.display());
+                };
+
+                let path = file_name.parent().unwrap_or(Path::new("")).join(path);
+
+                if known_files.contains(&path) {
+                    continue;
+                }
+
+                tracing::trace!("Pending import - {}", path.display());
+                importing.push_back(path.clone());
+                known_files.insert(path);
+            }
+        } else {
+            tracing::trace!("There was no import or was invalid");
+        }
+
+        if importing.len() > 512 {
+            panic!("Too much importing - isn't importing circulating??");
+        }
+
+        tracing::debug!("Loaded {}", file_name.display());
+
+        loaded_config = Some(config);
+    }
+
+    let config = loaded_config
+        .expect("At least one config should have been loaded, but nothing seems to be loaded")
         .try_deserialize()
         .context(
             "The config was found, but could not parse as the TOML, or the valid config object",
