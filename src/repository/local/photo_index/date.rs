@@ -5,20 +5,20 @@ use anyhow::{Context as _, bail};
 use crate::{model::{Identifier, ImageMeta, PhotoOrigin, PhotoReference}, repository::io::ScopedPath};
 
 #[derive(Debug)]
-pub struct AllImageIndex {
+pub struct DateImageIndex {
     path: ScopedPath,
-    content: Option<AllImageIndexEntry>,
+    content: Option<DateImageIndexEntry>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "_v", rename_all = "lowercase")]
-enum AllImageIndexEntry {
+enum DateImageIndexEntry {
     V1(v1::ImageIndexEntry),
 }
 
-impl Default for AllImageIndexEntry {
+impl Default for DateImageIndexEntry {
     fn default() -> Self {
-        AllImageIndexEntry::V1(Default::default())
+        DateImageIndexEntry::V1(Default::default())
     }
 }
 
@@ -78,16 +78,16 @@ mod v1 {
 }
 
 
-impl AllImageIndex {
-    pub fn new(path: &ScopedPath) -> AllImageIndex {
-        AllImageIndex {
+impl DateImageIndex {
+    pub fn new(path: &ScopedPath) -> DateImageIndex {
+        DateImageIndex {
             path: path.clone(),
             content: None,
         }
     }
 
     pub fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
-        let AllImageIndexEntry::V1(index) = self.load()?;
+        let DateImageIndexEntry::V1(index) = self.load()?;
 
         let month_pics = index
             .pics
@@ -114,12 +114,12 @@ impl AllImageIndex {
     }
 
     pub fn total_count(&mut self) -> anyhow::Result<u32> {
-        let AllImageIndexEntry::V1(index) = self.load()?;
+        let DateImageIndexEntry::V1(index) = self.load()?;
         Ok(index.total_count)
     }
 
     pub fn list_first_n_images(&mut self, size: usize) -> anyhow::Result<Vec<&PhotoOrigin>> {
-        let AllImageIndexEntry::V1(index) = self.load()?;
+        let DateImageIndexEntry::V1(index) = self.load()?;
 
         let images = index
             .registered_months()?
@@ -138,7 +138,7 @@ impl AllImageIndex {
         ident: &Identifier,
         size: usize,
     ) -> anyhow::Result<Vec<&PhotoOrigin>> {
-        let AllImageIndexEntry::V1(index) = self.load()?;
+        let DateImageIndexEntry::V1(index) = self.load()?;
 
         let photos = index
             .pics
@@ -170,7 +170,7 @@ impl AllImageIndex {
     }
 
     pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<PhotoOrigin> {
-        let AllImageIndexEntry::V1(index) = self.load()?;
+        let DateImageIndexEntry::V1(index) = self.load()?;
 
         let mut result: Option<anyhow::Result<PhotoOrigin>> = None;
         index
@@ -198,7 +198,7 @@ impl AllImageIndex {
         result.unwrap_or(Err(anyhow::anyhow!("The photo was not found")))
     }
 
-    fn load(&mut self) -> anyhow::Result<&mut AllImageIndexEntry> {
+    fn load(&mut self) -> anyhow::Result<&mut DateImageIndexEntry> {
         // Fusing these two fns is really hard somehow
         self._load()?;
         Ok(self.content.as_mut().expect("Just initialized"))
@@ -239,8 +239,8 @@ impl AllImageIndex {
         Ok(())
     }
 
-    fn init(&mut self) -> anyhow::Result<AllImageIndexEntry> {
-        let value = AllImageIndexEntry::default();
+    fn init(&mut self) -> anyhow::Result<DateImageIndexEntry> {
+        let value = DateImageIndexEntry::default();
         let bytes = serde_json::to_vec_pretty(&value)
             .context("Failed to serialize an empty entry for all image index")?;
 

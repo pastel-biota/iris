@@ -1,4 +1,4 @@
-pub mod all;
+pub mod date;
 pub mod original_hash;
 pub mod reference;
 
@@ -8,10 +8,10 @@ use anyhow::Context as _;
 
 use crate::{model::{Identifier, ImageMeta, LocalIdentifier, PhotoOrigin, PhotoReference}, repository::{io::ScopedPath, photo_index::reference::ReferenceIndex}};
 
-use self::{all::AllImageIndex, original_hash::OriginalSha256Index};
+use self::{date::DateImageIndex, original_hash::OriginalSha256Index};
 
 pub struct PhotoIndex {
-    all_index: AllImageIndex,
+    all_index: DateImageIndex,
     hash_index: OriginalSha256Index,
     reference_index: ReferenceIndex,
 }
@@ -19,9 +19,9 @@ pub struct PhotoIndex {
 impl PhotoIndex {
     pub fn new(base_dir: &ScopedPath) -> Self {
         PhotoIndex {
-            all_index: AllImageIndex::new(&base_dir.join("all.json")),
+            all_index: DateImageIndex::new(&base_dir.join("date.json")),
             hash_index: OriginalSha256Index::new(&base_dir.join("sha256.json")),
-            reference_index: ReferenceIndex::new(&base_dir.join("refs.json")),
+            reference_index: ReferenceIndex::new(&base_dir.join("_pics.json")),
         }
     }
 
