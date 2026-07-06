@@ -147,6 +147,7 @@ impl PhotoStorageRegistry {
             properties: meta.properties,
             shot_time: meta.shot_time,
             representative_rgb: meta.representative_rgb,
+            tags: HashMap::new(),
         };
 
         self.dir.create_new_photo_meta(meta.clone())?;

@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 
-use crate::{model::{Identifier, ImageMeta, LocalIdentifier, PhotoReference}, repository::{io::ScopedPath, photo_index::{PhotoIndexProvider}}};
+use crate::{
+    model::{Identifier, ImageMeta, LocalIdentifier, PhotoReference},
+    repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
+};
 
 pub struct ReferenceIndex {
     path: ScopedPath,
@@ -22,58 +25,26 @@ impl Default for IndexEntry {
 }
 
 mod v1 {
-    use std::collections::HashMap;
+    use crate::{model::{self, Identifier}, symmetrical_from_into};
     use chrono::{DateTime, FixedOffset};
-    use crate::model::{self, Identifier};
+    use std::collections::HashMap;
 
     #[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
     pub(super) struct IndexEntry {
         pub total_count: u32,
-        pub pics: HashMap<Identifier, PhotoReference>,
+        pub pics: HashMap<Identifier, VersionedPhotoReference>,
     }
 
-    macro_rules! symmetrical_from_into {
-        (
-            #[$($attr:meta)+]
-            $pub:vis struct $ident:ident (= $equiv:path) {
-                $($fpub:vis $fident:ident : $ty:ty $(|$fn_ident:ident| -> $rty:ty, $rty2:ty => $expr:expr)* ,)+
-            }
-        ) => {
-            #[$($attr)+]
-            $pub struct $ident {
-                $($fpub $fident : $ty ,)+
-            }
+    #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(tag = "_v", rename_all = "lowercase")]
+    pub enum VersionedPhotoReference {
+        V1(PhotoReference),
+    }
 
-            impl From<$equiv> for $ident {
-                fn from(equiv: $equiv) -> $ident {
-                    $ident {
-                        $($fident : {
-                            let ret = equiv . $fident;
-                            $(
-                                let func = |$fn_ident: $rty2| -> $rty { type Rty = $rty; $expr };
-                                let ret : $rty = func(ret);
-                            )*
-                            ret
-                        },)+
-                    }
-                }
-            }
-
-            impl Into<$equiv> for $ident {
-                fn into(self) -> $equiv {
-                    $equiv {
-                        $($fident : {
-                            let ret = self . $fident;
-                            $(
-                                let func = |$fn_ident: $rty| -> $rty2 { type Rty = $rty2; $expr };
-                                let ret : $rty2 = func(ret);
-                            )*
-                            ret
-                        },)+
-                    }
-                }
-            }
-        };
+    impl From<model::PhotoReference> for VersionedPhotoReference {
+        fn from(value: model::PhotoReference) -> Self {
+            VersionedPhotoReference::V1(value.into())
+        }
     }
 
     symmetrical_from_into! {
@@ -83,10 +54,12 @@ mod v1 {
             pub year: i32,
             pub month: u32,
             pub hash: String,
-            pub images: HashMap<String, ImageMeta> |x| -> 
+            pub images: HashMap<String, ImageMeta> |x| ->
                 HashMap<String, ImageMeta>,
                 HashMap<String, model::ImageMeta>
             => x.into_iter().map(|(k, v)| (k, v.into())).collect::<Rty>(),
+            #[serde(default)]
+            pub tags: HashMap<String, Vec<String>>,
             pub shot_time: DateTime<FixedOffset>,
             pub representative_rgb: [u8; 3],
         }
@@ -103,7 +76,6 @@ mod v1 {
     }
 }
 
-
 impl PhotoIndexProvider for ReferenceIndex {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
@@ -111,9 +83,7 @@ impl PhotoIndexProvider for ReferenceIndex {
     fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        let replaced = index
-            .pics
-            .insert(photo.id().clone(), photo.clone().into());
+        let replaced = index.pics.insert(photo.id().clone(), photo.clone().into());
 
         if replaced.is_none() {
             index.total_count += 1;
@@ -141,22 +111,40 @@ impl ReferenceIndex {
     pub fn get_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoReference>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        Ok(index.pics.get(id).cloned().map(|refs| refs.into()))
+        Ok(
+            index.pics.get(id).cloned()
+                .map(|v1::VersionedPhotoReference::V1(refs)| refs.into())
+        )
     }
 
-    pub fn bulk_load_photo_map<'a>(&mut self, id: impl IntoIterator<Item = &'a Identifier>) -> anyhow::Result<HashMap<Identifier, PhotoReference>> {
+    pub fn bulk_load_photo_map<'a>(
+        &mut self,
+        id: impl IntoIterator<Item = &'a Identifier>,
+    ) -> anyhow::Result<HashMap<Identifier, PhotoReference>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        Ok(id.into_iter()
-            .filter_map(|id| index.pics.get(&*id).map(|photo| ((*id).clone(), photo.clone().into())))
+        Ok(id
+            .into_iter()
+            .filter_map(|id| {
+                index
+                    .pics
+                    .get(&*id)
+                    .map(|v1::VersionedPhotoReference::V1(photo)| (
+                            (*id).clone(), photo.clone().into()
+                    ))
+            })
             .collect())
     }
 
-    pub fn bulk_load_photo<'a>(&mut self, id: impl IntoIterator<Item = &'a Identifier>) -> anyhow::Result<impl Iterator<Item = Option<PhotoReference>>> {
-
+    pub fn bulk_load_photo<'a>(
+        &mut self,
+        id: impl IntoIterator<Item = &'a Identifier>,
+    ) -> anyhow::Result<impl Iterator<Item = Option<PhotoReference>>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        Ok(id.into_iter().map(|id| index.pics.get(&*id).map(|photo| photo.clone().into())))
+        Ok(id
+            .into_iter()
+            .map(|id| index.pics.get(&*id).map(|v1::VersionedPhotoReference::V1(photo)| photo.clone().into())))
     }
 
     pub fn add_new_image(
@@ -167,7 +155,7 @@ impl ReferenceIndex {
     ) -> anyhow::Result<()> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        let photo = index
+        let v1::VersionedPhotoReference::V1(photo) = index
             .pics
             .get_mut(&photo_id.0)
             .context("The image was not found")?;
@@ -181,13 +169,10 @@ impl ReferenceIndex {
         Ok(())
     }
 
-    pub fn delete_photo(
-        &mut self,
-        photo_id: &Identifier,
-    ) -> anyhow::Result<PhotoReference> {
+    pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<PhotoReference> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        let photo = index
+        let v1::VersionedPhotoReference::V1(photo) = index
             .pics
             .remove(&photo_id)
             .context("The image was not found")?;
@@ -208,8 +193,7 @@ impl ReferenceIndex {
     fn save(&mut self) -> anyhow::Result<()> {
         let bytes = {
             let entry = self.load_mut()?;
-            serde_json::to_vec_pretty(entry)
-                .context("Failed to serialize the sha256 index")?
+            serde_json::to_vec_pretty(entry).context("Failed to serialize the sha256 index")?
         };
 
         self.path

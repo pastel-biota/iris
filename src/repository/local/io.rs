@@ -1,14 +1,20 @@
+pub mod scheme;
+
 use anyhow::{Context, bail};
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _},
     pin,
 };
 
-use crate::{model::{ImageMeta, LocalIdentifier, PhotoMeta}, repository::io::{LengthedStream, ScopedPath}};
+use crate::{
+    model::{ImageMeta, LocalIdentifier, PhotoMeta},
+    repository::{io::{LengthedStream, ScopedPath}, local::io::scheme::VersionedPhotoMetaScheme},
+};
 
 pub struct PhotoStorageDirectory {
     base_dir: ScopedPath,
 }
+
 
 impl PhotoStorageDirectory {
     pub fn new(base_dir: &ScopedPath) -> Self {
@@ -24,13 +30,17 @@ impl PhotoStorageDirectory {
             anyhow::bail!("The local photo exists in the index but not in the filesystem")
         }
 
-        let file_content = paths.meta().read_binary()
+        let file_content = paths
+            .meta()
+            .read_binary()
             .with_context(|| format!("Could not read the metafile for {id}"))?;
 
-        let meta = serde_json::from_slice::<PhotoMeta>(file_content.as_slice())
+        let meta = serde_json::from_slice::<VersionedPhotoMetaScheme>(file_content.as_slice())
             .with_context(|| format!("The metafile for {id} exists, but is malformed"))?;
 
-        Ok(meta)
+        let VersionedPhotoMetaScheme::V1(meta) = meta;
+
+        Ok(meta.into())
     }
 
     pub async fn load_image(
@@ -41,7 +51,8 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<LengthedStream> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let image_file = paths.for_image(image_id, &image.extension)
+        let image_file = paths
+            .for_image(image_id, &image.extension)
             .open_file()
             .await
             .context("Failed to open image file")?;
@@ -58,7 +69,8 @@ impl PhotoStorageDirectory {
     ) -> anyhow::Result<Vec<u8>> {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
-        let mut image_file = paths.for_original_image(&image.extension)
+        let mut image_file = paths
+            .for_original_image(&image.extension)
             .open_file()
             .await
             .context("Failed to open image file")?;
@@ -98,11 +110,39 @@ impl PhotoStorageDirectory {
             })?;
         }
 
+        let meta = VersionedPhotoMetaScheme::V1(meta.into());
+
         let meta = serde_json::to_vec_pretty(&meta)
             .context("Could not create the JSON represent for the metafile")?;
 
-        paths.meta().write(meta)
+        paths
+            .meta()
+            .write(meta)
             .context("Could not write the metaafile for new photo")?;
+
+        Ok(())
+    }
+
+    pub fn update_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
+        let Some(id) = meta.origin.local_id() else {
+            bail!("The PhotoMeta is not local to this instance");
+        };
+
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
+
+        if !paths.meta().exists() {
+            bail!("The metafile does not exist ('{}')", id);
+        }
+
+        let meta = VersionedPhotoMetaScheme::V1(meta.into());
+
+        let meta_json = serde_json::to_vec_pretty(&meta)
+            .context("Could not create the JSON represent for the metafile")?;
+
+        paths
+            .meta()
+            .write(meta_json)
+            .context("Could not write the metafile")?;
 
         Ok(())
     }
@@ -123,10 +163,14 @@ impl PhotoStorageDirectory {
 
         meta.images.insert(image_id.to_string(), image.clone());
 
-        let meta_json = serde_json::to_vec_pretty(&meta)
+        let meta_for_json = VersionedPhotoMetaScheme::V1(meta.clone().into());
+
+        let meta_json = serde_json::to_vec_pretty(&meta_for_json)
             .context("Could not create the JSON represent for the metafile")?;
 
-        paths.meta().write(meta_json)
+        paths
+            .meta()
+            .write(meta_json)
             .context("Could not write the metaafile for new photo")?;
 
         Ok(meta)
@@ -144,10 +188,15 @@ impl PhotoStorageDirectory {
         self.write_image(&path, image_data).await
     }
 
-    async fn write_image(&self, path: &ScopedPath, image_data: impl AsyncRead) -> anyhow::Result<()> {
+    async fn write_image(
+        &self,
+        path: &ScopedPath,
+        image_data: impl AsyncRead,
+    ) -> anyhow::Result<()> {
         let result = {
             path.parent().unwrap().create_dir_all()?;
-            let mut file = path.create_file()
+            let mut file = path
+                .create_file()
                 .await
                 .context("Failed to open the image file")?;
 

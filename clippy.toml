@@ -5,4 +5,6 @@ disallowed-types = [
 disallowed-names = [
   "std::fs",
   "std::path",
+  "tokio::fs",
+  "tokio::path",
 ]

@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::model::{EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, PhotoMeta, PhotoOrigin, PhotoReference, Properties, RemoteOrigin};
+use crate::model::{
+    EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, PhotoMeta, PhotoOrigin,
+    PhotoReference, Properties, RemoteOrigin,
+};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct PhotoScheme {
@@ -22,6 +25,8 @@ pub struct PhotoScheme {
     /// The image ID is used to upload the actual image later.
     images: HashMap<String, ImageMetaScheme>,
 
+    tags: HashMap<String, Vec<String>>,
+
     shot_datetime: String,
 
     #[schema(example = "#123456")]
@@ -41,6 +46,7 @@ impl From<PhotoMeta> for PhotoScheme {
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
+            tags: value.tags,
             properties: value.properties.into(),
             shot_datetime: value.shot_time.to_rfc3339(),
             representative_color: {
@@ -54,12 +60,10 @@ impl From<PhotoMeta> for PhotoScheme {
 impl From<PhotoScheme> for PhotoMeta {
     fn from(value: PhotoScheme) -> Self {
         let origin = if let Some(federator) = value.federator {
-            PhotoOrigin::Federated(
-                RemoteOrigin {
-                    federator,
-                    identifier: value.id,
-                }
-            )
+            PhotoOrigin::Federated(RemoteOrigin {
+                federator,
+                identifier: value.id,
+            })
         } else {
             PhotoOrigin::Local(LocalIdentifier(value.id))
         };
@@ -72,6 +76,7 @@ impl From<PhotoScheme> for PhotoMeta {
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
+            tags: value.tags,
             representative_rgb: {
                 let value: u64 = u64::from_str_radix(&value.representative_color[1..], 16).unwrap();
                 [
@@ -177,9 +182,11 @@ impl From<PropertiesSchema> for Properties {
         Self {
             machine: value.machine,
             lens: value.lens,
-            gps_lat_lng: value.gps_lat_lng.and_then(|lnglat|
-                lnglat.first()
-                    .and_then(|lng| lnglat.get(1).map(|lat| (*lng, *lat)))),
+            gps_lat_lng: value.gps_lat_lng.and_then(|lnglat| {
+                lnglat
+                    .first()
+                    .and_then(|lng| lnglat.get(1).map(|lat| (*lng, *lat)))
+            }),
             f_number: value.f_number,
             shutter_speed: value.shutter_speed.map(NormalizedRational),
             shutter_speed_controlled: value.shutter_speed_controlled,
@@ -198,6 +205,7 @@ pub struct PhotoReferenceSchema {
     month: u32,
     original_sha256: String,
     images: HashMap<String, ImageMetaScheme>,
+    tags: HashMap<String, Vec<String>>,
     shot_time: String,
     representative_color: String,
 }
@@ -216,6 +224,7 @@ impl From<PhotoReference> for PhotoReferenceSchema {
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
+            tags: value.tags,
             representative_color: {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
@@ -227,12 +236,10 @@ impl From<PhotoReference> for PhotoReferenceSchema {
 impl From<PhotoReferenceSchema> for PhotoReference {
     fn from(value: PhotoReferenceSchema) -> Self {
         let origin = if let Some(federator) = value.federator {
-            PhotoOrigin::Federated(
-                RemoteOrigin {
-                    federator,
-                    identifier: value.id,
-                }
-            )
+            PhotoOrigin::Federated(RemoteOrigin {
+                federator,
+                identifier: value.id,
+            })
         } else {
             PhotoOrigin::Local(LocalIdentifier(value.id))
         };
@@ -248,6 +255,7 @@ impl From<PhotoReferenceSchema> for PhotoReference {
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
+            tags: value.tags,
             representative_rgb: {
                 let value: u64 = u64::from_str_radix(&value.representative_color[1..], 16).unwrap();
                 [

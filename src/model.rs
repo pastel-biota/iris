@@ -1,10 +1,17 @@
-use std::{collections::HashMap, fmt::{self, Display}, ops::Deref, str::FromStr};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    fmt::{self, Display},
+    ops::Deref,
+    str::FromStr,
+};
 
 use anyhow::bail;
 use chrono::{DateTime, Datelike, FixedOffset};
 use serde::{Deserialize, Serialize};
+use utoipa::openapi::{RefOr, Schema};
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, utoipa::ToSchema)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Identifier {
     pub year: i32,
     pub month: u32,
@@ -61,6 +68,21 @@ impl FromStr for Identifier {
     }
 }
 
+impl utoipa::PartialSchema for Identifier {
+    fn schema() -> RefOr<Schema> {
+        utoipa::openapi::Object::builder()
+            .schema_type(utoipa::openapi::Type::String)
+            .examples(["202604-01ARZ3NDEKTSV4RRFFQ69G5FAV"])
+            .into()
+    }
+}
+
+impl utoipa::ToSchema for Identifier {
+    fn name() -> Cow<'static, str> {
+        "Identifier".into()
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LocalIdentifier(pub Identifier);
 
@@ -83,6 +105,8 @@ pub struct PhotoMeta {
     pub origin: PhotoOrigin,
     pub original: Option<ImageMeta>,
     pub images: HashMap<String, ImageMeta>,
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
     pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
@@ -166,6 +190,8 @@ pub struct PhotoReference {
     pub month: u32,
     pub hash: String,
     pub images: HashMap<String, ImageMeta>,
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
 }
@@ -183,10 +209,8 @@ impl From<PhotoMeta> for PhotoReference {
             month: value.origin.id().month,
             origin: value.origin,
             hash: value.original_sha256,
-            images: value
-                .images
-                .into_iter()
-                .collect(),
+            images: value.images.into_iter().collect(),
+            tags: value.tags,
             shot_time: value.shot_time,
             representative_rgb: value.representative_rgb,
         }
@@ -196,8 +220,8 @@ impl From<PhotoMeta> for PhotoReference {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum PhotoOrigin {
     Local(LocalIdentifier),
-    Federated(RemoteOrigin)
-} 
+    Federated(RemoteOrigin),
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct RemoteOrigin {
@@ -236,7 +260,9 @@ impl PhotoOrigin {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(
+    Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
 pub struct EntityName(String);
 
 impl Display for EntityName {
@@ -257,8 +283,13 @@ impl FromStr for EntityName {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.chars().all(|ch: char| ch.is_ascii_alphabetic() || ch == '-' || ch == '_') {
-            bail!("There is a invalid character - only 0..9, a..z, A..Z, hyphen, underscore can be used")
+        if !s
+            .chars()
+            .all(|ch: char| ch.is_ascii_alphabetic() || ch == '-' || ch == '_')
+        {
+            bail!(
+                "There is a invalid character - only 0..9, a..z, A..Z, hyphen, underscore can be used"
+            )
         }
 
         Ok(EntityName(s.to_string()))
@@ -267,7 +298,7 @@ impl FromStr for EntityName {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum Whitelist {
-    Select { pics: Vec<Identifier>, },
+    Select { pics: Vec<Identifier> },
     Everything,
 }
 
@@ -281,7 +312,7 @@ impl Whitelist {
             Whitelist::Select { mut pics } => {
                 pics.extend(photos.iter().cloned());
                 Whitelist::Select { pics }
-            },
+            }
             Whitelist::Everything => self,
         }
     }
@@ -300,4 +331,3 @@ impl Whitelist {
         }
     }
 }
-

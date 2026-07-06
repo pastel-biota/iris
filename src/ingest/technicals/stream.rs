@@ -1,3 +1,6 @@
+// Safety: The file names are entirely controlled at here
+#![allow(clippy::disallowed_types)]
+
 use std::{io::{ErrorKind, Write}, os::unix::fs::{MetadataExt, PermissionsExt}, path::PathBuf};
 
 use bytes::Bytes;
