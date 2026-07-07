@@ -183,19 +183,17 @@ fn get_orientation(exif: &ExifData) -> anyhow::Result<Orientation> {
 fn machinery(exif: &ExifData, vendor: Tag, model: Tag) -> anyhow::Result<String> {
     let vendor = exif
         .get_ascii(vendor)
-        .context("Camera's vendor is not available")?
-        .trim()
-        .to_string();
+        .map(|vendor| vendor.trim().to_string());
     let model = exif
         .get_ascii(model)
         .context("Camera's model is not available")?
         .trim()
         .to_string();
 
-    if model.contains(&vendor) {
-        Ok(model)
-    } else {
+    if let Some(vendor) = vendor && !model.contains(&vendor) {
         Ok(format!("{vendor} {model}"))
+    } else {
+        Ok(model)
     }
 }
 
