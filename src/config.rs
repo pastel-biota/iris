@@ -104,6 +104,11 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct BaseConfig {
     pub host: String,
+
+    /// Disables all rate limiting on this instance when set to `false`.
+    /// Intended for a private, trusted-network instance (e.g. behind Tailscale) where
+    /// bulk uploads would otherwise trip the limits meant for a publicly exposed instance.
+    pub rate_limit: Option<bool>,
 }
 
 #[derive(Debug)]

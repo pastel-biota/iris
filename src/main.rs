@@ -9,6 +9,7 @@ use crate::{
     config::{BaseConfig, Entry, parse_config},
     entry::server::RunServerResourcees,
     event::{EventSender, create_event_bus},
+    infra::api::rate_limit::RateLimit,
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
     repository::{io::ScopedPath, registry::PhotoStorageRegistry},
@@ -37,6 +38,7 @@ pub struct Context {
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
+    pub rate_limit: RateLimit,
 }
 
 #[tokio::main]
@@ -77,6 +79,7 @@ async fn run() -> Result<(), anyhow::Error> {
         processor: ProcessorContext::new(config.image),
         base: config.base,
         event_tx,
+        rate_limit: RateLimit::default(),
     });
 
     match command {

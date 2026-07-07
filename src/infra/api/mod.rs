@@ -1,8 +1,9 @@
 pub mod middleware;
+pub mod rate_limit;
 pub mod types;
 pub mod openapi;
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{Extension, http::StatusCode, routing::get};
@@ -50,11 +51,15 @@ pub async fn run(
         .merge(Redoc::with_url("/docs", openapi))
         .layer(CorsLayer::permissive().allow_origin(cors_origin))
         .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(rate_limit::global_rate_limit))
         .layer(Extension(ctx.clone()));
 
     tracing::info!("Iris will be serving at http://{}", &ctx.ingest.config.listen);
 
-    axum::serve(TcpListener::bind(&ctx.ingest.config.listen).await?, router).await?;
+    axum::serve(
+        TcpListener::bind(&ctx.ingest.config.listen).await?,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    ).await?;
 
     Ok(())
 }

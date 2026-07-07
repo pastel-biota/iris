@@ -12,6 +12,7 @@ pub enum ApiError {
     Forbidden(String),
     Conflict(String),
     PayloadTooLarge(String),
+    TooManyRequests(String),
     InternalError(String),
 }
 pub type ApiErrorKind = fn(String) -> ApiError;
@@ -50,6 +51,7 @@ impl IntoResponse for ApiError {
             Self::Forbidden(reason) => (StatusCode::FORBIDDEN, reason),
             Self::Conflict(reason) => (StatusCode::CONFLICT, reason),
             Self::PayloadTooLarge(reason) => (StatusCode::PAYLOAD_TOO_LARGE, reason),
+            Self::TooManyRequests(reason) => (StatusCode::TOO_MANY_REQUESTS, reason),
             Self::InternalError(reason) => (StatusCode::INTERNAL_SERVER_ERROR, reason),
         };
         (status, Json(client_error(reason))).into_response()
