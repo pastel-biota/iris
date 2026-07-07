@@ -118,6 +118,10 @@ fn exif_to_image_property(exif: &ExifData) -> anyhow::Result<ExifPayload> {
     })
 }
 
+/// Falls back to when the camera didn't write `OffsetTime` (common when
+/// the timezone setting isn't configured in-camera).
+const FALLBACK_OFFSET: &str = "+09:00";
+
 fn time_value(
     exif: &ExifData,
     date_time: Tag,
@@ -129,7 +133,7 @@ fn time_value(
         .context("DateTime is not available")?;
     let timezone = exif
         .get_ascii(offset_time)
-        .context("DateTime is not available")?;
+        .unwrap_or(FALLBACK_OFFSET);
 
     chrono::DateTime::parse_from_str(&format!("{timestamp} {timezone}"), "%Y:%m:%d %H:%M:%S %:z")
         .context("DateTime was malformed")
