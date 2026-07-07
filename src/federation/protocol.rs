@@ -6,16 +6,13 @@ use serde_json::Value;
 
 use crate::{infra::api::types::IrisResponse, repository::io::LengthedStream};
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum RequestError {
+    #[error("The remote Iris responded with {0}: {1}")]
     Applictaion(http::StatusCode, String),
-    Anyhow(anyhow::Error),
-}
 
-impl From<anyhow::Error> for RequestError {
-    fn from(value: anyhow::Error) -> Self {
-        RequestError::Anyhow(value)
-    }
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 pub trait Endpoint {
@@ -39,9 +36,9 @@ fn contrust_request<E: Endpoint>(
     let (method, path) = E::PATH;
 
     let req = if method == Method::GET {
-        let path = to_param(path, param)?;
+        let path_with_param = to_param(path, param)?;
         super::request::create_client()
-            .request(method, format!("{}{}", origin, path))
+            .request(method, format!("{}{}", origin, path_with_param))
     } else {
         super::request::create_client()
             .request(method, format!("{}{}", origin, path))
@@ -66,14 +63,17 @@ pub async fn request<E: Endpoint>(
     let req = contrust_request::<E>(session_id, origin, param)?
         .send()
         .await
-        .unwrap();
+        .with_context(|| "Could not send the request")?;
 
     let code = req.status();
 
-    let response = req
-        .json::<IrisResponse<E::Response>>()
-        .await
-        .unwrap();
+    let response = req.text().await.context("Could not read the response body")?;
+
+    let response = serde_json::from_str::<IrisResponse<E::Response>>(&response)
+        .with_context(|| {
+            tracing::debug!("Failed to parse [{}{}] ({}): {:?}", origin, E::PATH.1, code, response);
+            format!("The request to '{}' was successful, but its shape is not something we wanted", E::PATH.1)
+        })?;
 
     match response {
         IrisResponse::Okay { response } => {
@@ -93,7 +93,7 @@ pub async fn request_stream<E: Endpoint>(
     let req = contrust_request::<E>(session_id.as_deref(), &origin, param)?
         .send()
         .await
-        .unwrap();
+        .context("Could not send the request")?;
 
     let code = req.status();
 
@@ -119,7 +119,7 @@ fn to_param(url: &str, query: impl serde::Serialize) -> anyhow::Result<String> {
     let query = serde_json::to_value(query)?;
 
     if query == Value::Null {
-        return Ok(String::new());
+        return Ok(url.to_owned());
     }
 
     let Value::Object(query) = query else {

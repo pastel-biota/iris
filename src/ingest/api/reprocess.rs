@@ -8,7 +8,7 @@ use axum::{
 };
 
 use crate::{
-    Context, api::error::ApiError, auth::extractor::IrisSession, event::Event, infra::api::types::{SuccessfulResponse, success}, model::Identifier
+    Context, api::error::ApiError, auth::{extractor::ValidUserSession, whitelist}, event::Event, infra::api::types::{SuccessfulResponse, success}, model::Identifier
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -33,9 +33,12 @@ pub struct ReprocessResponse;
 )]
 pub async fn reprocess(
     State(ctx): State<Arc<Context>>,
-    _: IrisSession,
+    ValidUserSession(session): ValidUserSession,
     Path((photo_id,)): Path<(Identifier,)>,
 ) -> Result<impl IntoResponse, ApiError> {
+    whitelist::ensure_photo_allowed(&ctx.auth, &session.clone().into(), &photo_id)
+        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
+
     tracing::debug!("Loading the image");
 
     let photo = {

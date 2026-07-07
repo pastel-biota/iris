@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, api::{extract::parse_identifier, error::ApiError}, auth::extractor::IrisSession, infra::api::types::ClientError};
+use crate::{Context, api::error::ApiError, auth::{extractor::ValidUserSession, whitelist}, infra::api::types::ClientError, model::Identifier};
 
 /// A new field
 ///
@@ -26,10 +26,11 @@ use crate::{Context, api::{extract::parse_identifier, error::ApiError}, auth::ex
 )]
 pub async fn delete(
     State(ctx): State<Arc<Context>>,
-    Path((photo_id,)): Path<(String,)>,
-    IrisSession(_): IrisSession,
+    Path((photo_id,)): Path<(Identifier,)>,
+    ValidUserSession(session): ValidUserSession,
 ) -> Result<impl IntoResponse, ApiError> {
-    let photo_id = parse_identifier(&photo_id)?;
+    whitelist::ensure_photo_allowed(&ctx.auth, &session.clone().into(), &photo_id)
+        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
     let mut registry = ctx.registry.write().await;
     registry

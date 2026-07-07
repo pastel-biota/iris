@@ -36,6 +36,7 @@ pub struct UserEntity {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FederationEntity {
     pub name: EntityName,
+    pub password: HashedPassword,
 }
 
 pub fn serialize_new_user(name: EntityName, password: HashedPassword) -> anyhow::Result<String> {

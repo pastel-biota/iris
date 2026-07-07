@@ -41,7 +41,7 @@ impl SizedStream {
             return Err(std::io::Error::new(ErrorKind::FileTooLarge, format!("The payload must be within {MAX_PER_STREAM_SIZE_BYTES} bytes")));
         }
 
-        let _semaphore = self.io_sem.acquire_many(requested_size.try_into().unwrap());
+        let semaphore = self.io_sem.acquire_many(requested_size.try_into().unwrap()).await.unwrap();
         tracing::debug!(
             "Acquired I/O Sem: {}, now {} left",
             requested_size,
@@ -49,7 +49,7 @@ impl SizedStream {
         );
 
         pin!(stream);
-        let payload = StreamPayloadHandle::new(&self.mem_sem)?;
+        let payload = StreamPayloadHandle::new(&self.mem_sem, semaphore)?;
 
         let mut file = std::fs::File::create_new(&payload.ephemeral_path)?;
 
@@ -81,16 +81,18 @@ impl SizedStream {
 pub struct StreamPayloadHandle<'s> {
     ephemeral_path: PathBuf,
     semaphore: &'s Semaphore,
+    io_handle: SemaphorePermit<'s>,
 }
 
 impl<'s> StreamPayloadHandle<'s> {
-    pub fn new(semaphore: &'s Semaphore) -> Result<Self, std::io::Error> {
+    pub fn new(semaphore: &'s Semaphore, io_handle: SemaphorePermit<'s>) -> Result<Self, std::io::Error> {
         let random = rand::random::<u32>();
         let path = Self::ensure_tmp_dir()?.join(format!("payload-{random}"));
 
         Ok(Self {
             ephemeral_path: path,
             semaphore,
+            io_handle,
         })
     }
 

@@ -9,21 +9,21 @@ pub enum LoginError {
     GenericError(#[from] anyhow::Error),
 }
 
-pub async fn login_to_user(ctx: &AuthContext, username: &EntityName, password: &Password) -> Result<String, LoginError> {
+pub async fn login_to_entity(ctx: &AuthContext, username: &EntityName, password: &Password) -> Result<String, LoginError> {
     let entity = ctx.config.entities.get(username);
-    let user = match entity {
-        Some(Entity::User(user)) => Some(user),
-        _ => None
-    };
+    let hashed = entity.map(|entity| match entity {
+        Entity::User(user) => &user.password,
+        Entity::Federation(federation) => &federation.password,
+    });
 
-    if !super::password::verify_password(password, user.map(|user| &user.password))? {
+    if !super::password::verify_password(password, hashed)? {
         return Err(LoginError::InvalidCredential);
     }
 
     let session_key = ctx.state.lock()
         .unwrap()
         .sessions
-        .new_session(Entity::User(user.unwrap().clone()))?;
+        .new_session(entity.unwrap().clone())?;
 
     Ok(session_key)
 }

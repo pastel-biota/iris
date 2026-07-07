@@ -1,16 +1,16 @@
-use http::StatusCode;
+use axum::response::{Response, IntoResponse};
 
-use crate::auth::session::SESSION_DURATION;
+use crate::{api::error::ApiError, auth::session::SESSION_DURATION, infra::api::types::client_error};
 
 pub const SESSION_COOKIE: &str = "session_id";
 
-pub fn extract_from_header(authorization: &str) -> Result<Option<&str>, StatusCode> {
+pub fn extract_from_header(authorization: &str) -> Result<Option<&str>, ApiError> {
     let Some((schema, value)) = authorization.split_once(" ") else {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(ApiError::BadRequest("Expected bearer token".to_string()));
     };
 
     if schema.to_lowercase() != "bearer" {
-        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        return Err(ApiError::BadRequest("The authorization bearer is not bearer".to_string()));
     };
 
     Ok(Some(value.trim()))

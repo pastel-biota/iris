@@ -11,7 +11,7 @@ use futures_util::TryStreamExt;
 use http::request::Parts;
 
 use crate::{
-    Context, api::error::ApiError, auth::extractor::IrisSession, event::Event, infra::api::types::{
+    Context, api::error::ApiError, auth::extractor::ValidUserSession, event::Event, infra::api::types::{
         BinaryBody, ClientError, SuccessfulResponse, success,
     }, ingest::{
         api::scheme::PhotoScheme,
@@ -54,7 +54,7 @@ pub const MAX_BODY: usize = 100 * 1024 * 1024;
 )]
 pub async fn new_photo(
     State(ctx): State<Arc<Context>>,
-    IrisSession(_): IrisSession,
+    ValidUserSession(_): ValidUserSession,
     parts: Parts,
     body: Body
 ) -> Result<impl IntoResponse, ApiError> {

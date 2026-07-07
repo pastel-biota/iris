@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{auth::endpoint::{LoginBody, LoginEndpoint}, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::FederationConfig, io::LengthedStream}};
+use anyhow::Context as _;
+
+use crate::{auth::endpoint::{LoginBody, LoginEndpoint, MeEndpoint}, federation::protocol::RequestError, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::{FederationConfig, FederationHost}, io::LengthedStream}};
 
 pub struct FederatedPhotoIndex {
     pub config: FederationConfig,
-    session: HashMap<EntityName, String>,
+    session: HashMap<String, String>,
 }
 
 #[derive(Clone)]
@@ -23,14 +25,18 @@ impl FederatedPhotoIndex {
     }
 
     pub async fn list_photos(&mut self, name: &EntityName, size: Option<u32>, cursor: Option<Identifier>) -> anyhow::Result<PagedPhotoRefList> {
-        let host = self.config.hosts.get(name).unwrap().clone();
-        let session = self.ensure_logged_in(name).await.unwrap();
+        let host = self.config.hosts.get(name)
+            .with_context(|| format!("No such host configured: {name}"))?
+            .clone();
+        let session = self.ensure_logged_in(&host)
+            .await
+            .with_context(|| format!("Failed to log in to the host: {name}"))?;
 
         let cred = crate::federation::protocol::request::<GetPhotosListEndpoint>(
             Some(&session),
             &host.origin,
             GetPhotosListQuery { cursor, size }
-        ).await.unwrap();
+        ).await.context("Failed to retrieve the photo list from the federated host")?;
 
         Ok(PagedPhotoRefList {
             photos: cred.photos.into_iter().map(|photo| {
@@ -50,14 +56,18 @@ impl FederatedPhotoIndex {
     }
 
     pub async fn get_photos_meta(&mut self, origin: &RemoteOrigin) -> anyhow::Result<PhotoMeta> {
-        let host = self.config.hosts.get(&origin.federator).unwrap().clone();
-        let session = self.ensure_logged_in(&origin.federator).await.unwrap();
+        let host = self.config.hosts.get(&origin.federator)
+            .with_context(|| format!("No such host configured: {}", &origin.federator))?
+            .clone();
+        let session = self.ensure_logged_in(&host)
+            .await
+            .with_context(|| format!("Failed to log in to the host: {}", &origin.federator))?;
 
         let photo = crate::federation::protocol::request::<GetPhotoMetaEndpoint>(
             Some(&session),
             &host.origin,
             GetPhotoMetaRequest { photo_id: origin.identifier.clone() }
-        ).await.unwrap();
+        ).await.context("Failed to retrieve the photo meta from the federated host")?;
 
         let mut photo = PhotoMeta::from(photo.photo);
         photo.origin = PhotoOrigin::Federated(
@@ -75,21 +85,23 @@ impl FederatedPhotoIndex {
         origin: &RemoteOrigin,
         image_id: &str
     ) -> anyhow::Result<LengthedStream> {
-        let host = self.config.hosts.get(&origin.federator).unwrap().clone();
-        let session = self.ensure_logged_in(&origin.federator).await.unwrap();
+        let host = self.config.hosts.get(&origin.federator)
+            .with_context(|| format!("No such host configured: {}", &origin.federator))?
+            .clone();
+        let session = self.ensure_logged_in(&host)
+            .await
+            .with_context(|| format!("Failed to log in to the host: {}", &origin.federator))?;
 
         let photo = crate::federation::protocol::request_stream::<GetImageEndpoint>(
             Some(session),
             host.origin.clone(),
             GetImageRequest { photo_id: origin.identifier.clone(), image_id: image_id.to_string() }
-        ).await.unwrap();
+        ).await.context("Failed to retrieve the image from the federated host")?;
 
         Ok(photo)
     }
 
-    async fn login(&mut self, name: &EntityName) -> anyhow::Result<String> {
-        let host = self.config.hosts.get(name).unwrap();
-
+    async fn login(&mut self, host: &FederationHost) -> anyhow::Result<String> {
         let cred = crate::federation::protocol::request::<LoginEndpoint>(
             None,
             &host.origin,
@@ -97,20 +109,45 @@ impl FederatedPhotoIndex {
                 username: host.username.clone(),
                 password: host.password.clone(),
             }
-        ).await.unwrap();
+        ).await.context("Failed to log in to the federated host")?;
 
-        self.session.insert(name.clone(), cred.session_key.clone());
+        self.session.insert(host.origin.clone(), cred.session_key.clone());
 
         Ok(cred.session_key)
     }
 
-    async fn ensure_logged_in(&mut self, name: &EntityName) -> anyhow::Result<String> {
+    async fn ensure_logged_in(&mut self, host: &FederationHost) -> anyhow::Result<String> {
         // TODO: Handle session expire
 
-        if let Some(session) = self.session.get(name) {
-            Ok(session.clone())
-        } else {
-            self.login(name).await
+        if let Some(session) = self.verify_token(host).await? {
+            return Ok(session.to_string());
+        }
+
+        self.login(host).await?;
+
+        let token = self.verify_token(host)
+            .await?
+            .context("Could not refresh the token")?;
+
+        Ok(token.to_string())
+    }
+
+    async fn verify_token(&mut self, host: &FederationHost) -> anyhow::Result<Option<&str>> {
+        let Some(session) = self.session.get(&host.origin) else {
+            return Ok(None);
+        };
+
+        let me = crate::federation::protocol::request::<MeEndpoint>(
+            Some(session),
+            &host.origin,
+            ()
+        ).await;
+
+        match me {
+            Ok(_) => Ok(Some(session.as_str())),
+            Err(RequestError::Applictaion(http::StatusCode::UNAUTHORIZED, _)) => Ok(None),
+            Err(RequestError::Applictaion(code, reason)) => Err(anyhow::anyhow!("The request to /auth/me failed with {code}: {reason}")),
+            Err(RequestError::Anyhow(anyhow)) => Err(anyhow)
         }
     }
 }

@@ -30,7 +30,7 @@ pub async fn create_user(ctx: Arc<Context>, user: UserOptions) -> anyhow::Result
 
     let password = crate::auth::password::accept_password_from_cli(&user.name)?;
 
-    let new_user_config = crate::auth::serialize::serialize_new_user(&user.name, password)?;
+    let new_user_config = crate::auth::serialize::serialize_new_entity(&user.name, password, user.federation)?;
 
     let mut file = std::fs::OpenOptions::new()
         .append(true)

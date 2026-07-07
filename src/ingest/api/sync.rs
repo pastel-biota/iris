@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::{Path, State}, http::StatusCode, response::IntoResponse};
 
-use crate::{Context, api::error::ApiError, infra::api::types::{ClientError, SuccessfulResponse, success}, model::EntityName};
+use crate::{Context, api::error::ApiError, auth::extractor::ValidUserSession, infra::api::types::{ClientError, SuccessfulResponse, success}, model::EntityName};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct SyncResponse {
@@ -25,6 +25,7 @@ pub struct SyncResponse {
 )]
 pub async fn sync(
     State(ctx): State<Arc<Context>>,
+    ValidUserSession(_): ValidUserSession,
     Path((name,)): Path<(EntityName,)>,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut registry = ctx.registry.write().await;

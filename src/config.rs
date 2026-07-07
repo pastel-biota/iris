@@ -60,6 +60,11 @@ pub struct UserOptions {
     /// The file of the configuration file to be written
     #[clap(short = 'W', long)]
     pub write_to_stdout: bool,
+
+    /// Register the entity as a federation peer, which can only read whitelisted photos
+    /// and cannot use the administrative endpoints
+    #[clap(long)]
+    pub federation: bool,
 }
 
 #[derive(Clone, clap::Args)]

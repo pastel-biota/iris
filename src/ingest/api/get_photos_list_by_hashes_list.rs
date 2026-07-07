@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
-    Context, api::error::ApiError, auth::extractor::IrisSession, infra::api::types::{
+    Context, api::error::ApiError, auth::extractor::ValidUserSession, infra::api::types::{
         ClientError, SuccessfulResponse, success,
     }, ingest::api::scheme::PhotoReferenceSchema
 };
@@ -49,7 +49,7 @@ pub struct GetPhotosListByHashesListResponse<'a> {
 )]
 pub async fn get_photos_list_by_hashes_list(
     State(ctx): State<Arc<Context>>,
-    IrisSession(_): IrisSession,
+    ValidUserSession(_): ValidUserSession,
     Json(param): Json<GetPhotosListByHashesListParam>,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut registry = ctx.registry.write().await;

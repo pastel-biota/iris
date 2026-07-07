@@ -8,6 +8,7 @@ use crate::infra::api::types::client_error;
 pub enum ApiError {
     BadRequest(String),
     NotFound(String),
+    Unauthorized(String),
     Forbidden(String),
     Conflict(String),
     PayloadTooLarge(String),
@@ -45,6 +46,7 @@ impl IntoResponse for ApiError {
         let (status, reason) = match self {
             Self::BadRequest(reason) => (StatusCode::BAD_REQUEST, reason),
             Self::NotFound(reason) => (StatusCode::NOT_FOUND, reason),
+            Self::Unauthorized(reason) => (StatusCode::UNAUTHORIZED, reason),
             Self::Forbidden(reason) => (StatusCode::FORBIDDEN, reason),
             Self::Conflict(reason) => (StatusCode::CONFLICT, reason),
             Self::PayloadTooLarge(reason) => (StatusCode::PAYLOAD_TOO_LARGE, reason),

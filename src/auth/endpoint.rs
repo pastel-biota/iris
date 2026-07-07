@@ -20,3 +20,16 @@ impl Endpoint for LoginEndpoint {
     type Request = LoginBody;
     type Response = LoginResponse;
 }
+
+pub struct MeEndpoint;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct MeResponse {
+    pub name: EntityName,
+}
+
+impl Endpoint for MeEndpoint {
+    const PATH: (Method, &str) = (Method::GET, "/auth/me");
+    type Request = ();
+    type Response = MeResponse;
+}
