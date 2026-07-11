@@ -2,7 +2,7 @@ use axum::response::{Response, IntoResponse};
 
 use crate::{api::error::ApiError, auth::session::SESSION_DURATION, infra::api::types::client_error};
 
-pub const SESSION_COOKIE: &str = "session_id";
+pub const SESSION_COOKIE: &str = "iris-secret";
 
 pub fn extract_from_header(authorization: &str) -> Result<Option<&str>, ApiError> {
     let Some((schema, value)) = authorization.split_once(" ") else {

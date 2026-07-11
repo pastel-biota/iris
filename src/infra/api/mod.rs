@@ -7,8 +7,9 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{Extension, http::StatusCode, routing::get};
+use http::{Method, header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE}, method};
 use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use utoipa_axum::router::OpenApiRouter;
 
 use utoipa_redoc::{Redoc, Servable as _};
@@ -49,7 +50,13 @@ pub async fn run(
             }),
         )
         .merge(Redoc::with_url("/docs", openapi))
-        .layer(CorsLayer::permissive().allow_origin(cors_origin))
+        .layer(
+            CorsLayer::default()
+                .allow_origin(cors_origin)
+                .allow_headers([AUTHORIZATION, CONTENT_TYPE, ACCEPT])
+                .allow_methods([Method::GET, Method::POST])
+                .allow_credentials(true)
+        )
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(rate_limit::global_rate_limit))
         .layer(Extension(ctx.clone()));
