@@ -7,7 +7,7 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -24,11 +24,19 @@ jobs:
       - name: Cache Rust build artifact
         uses: Swatinem/rust-cache@v2
 
+      - name: Build Rust project
+        run: cargo build --release
+
       - name: Build and push Docker image
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
         with:
-          context: .
+          context: .github/workflows/
           push: true
           tags: |
             ghcr.io/pastel-biota/iris:${{ github.ref_name }}
             ghcr.io/pastel-biota/iris:latest
+
+      - name: Attach binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/iris
