@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       packages: write
@@ -30,7 +30,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
         with:
-          context: .github/workflows/
+          context: target/release
+          file: .github/workflows/Dockerfile
           push: true
           tags: |
             ghcr.io/pastel-biota/iris:${{ github.ref_name }}
