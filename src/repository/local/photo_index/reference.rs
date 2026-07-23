@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 
 use crate::{
-    model::{Identifier, ImageMeta, LocalIdentifier, PhotoReference},
-    repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
+    model::{self, Identifier, ImageMeta, LocalIdentifier, PhotoReference}, repository::{io::ScopedPath},
 };
+use crate::repository::photo_index::PhotoIndexProvider;
 
 pub struct ReferenceIndex {
     path: ScopedPath,
@@ -79,25 +79,6 @@ mod v1 {
 impl PhotoIndexProvider for ReferenceIndex {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
-
-    fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        let replaced = index.pics.insert(photo.id().clone(), photo.clone().into());
-
-        if replaced.is_none() {
-            index.total_count += 1;
-        }
-
-        self.save()?;
-
-        Ok(())
-    }
-
-    fn total_count(&mut self) -> anyhow::Result<u32> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-        Ok(index.total_count)
-    }
 }
 
 impl ReferenceIndex {
@@ -108,76 +89,18 @@ impl ReferenceIndex {
         }
     }
 
-    pub fn get_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoReference>> {
+    pub fn dangerously_read_photo(&mut self) -> anyhow::Result<impl Iterator<Item = model::PhotoReference>> {
         let IndexEntry::V1(index) = self.load_mut()?;
 
-        Ok(
-            index.pics.get(id).cloned()
-                .map(|v1::VersionedPhotoReference::V1(refs)| refs.into())
-        )
-    }
-
-    pub fn bulk_load_photo_map<'a>(
-        &mut self,
-        id: impl IntoIterator<Item = &'a Identifier>,
-    ) -> anyhow::Result<HashMap<Identifier, PhotoReference>> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        Ok(id
-            .into_iter()
-            .filter_map(|id| {
-                index
-                    .pics
-                    .get(&*id)
-                    .map(|v1::VersionedPhotoReference::V1(photo)| (
-                            (*id).clone(), photo.clone().into()
-                    ))
-            })
-            .collect())
-    }
-
-    pub fn bulk_load_photo<'a>(
-        &mut self,
-        id: impl IntoIterator<Item = &'a Identifier>,
-    ) -> anyhow::Result<impl Iterator<Item = Option<PhotoReference>>> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        Ok(id
-            .into_iter()
-            .map(|id| index.pics.get(&*id).map(|v1::VersionedPhotoReference::V1(photo)| photo.clone().into())))
-    }
-
-    pub fn add_new_image(
-        &mut self,
-        photo_id: &LocalIdentifier,
-        image_id: &str,
-        image: &ImageMeta,
-    ) -> anyhow::Result<()> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        let v1::VersionedPhotoReference::V1(photo) = index
+        Ok(index
             .pics
-            .get_mut(&photo_id.0)
-            .context("The image was not found")?;
-
-        photo
-            .images
-            .insert(image_id.to_string(), image.clone().into());
-
-        self.save()?;
-
-        Ok(())
+            .values()
+            .map(|v1::VersionedPhotoReference::V1(photo)| photo.clone().into()))
     }
 
-    pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<PhotoReference> {
+    pub fn total_count(&mut self) -> anyhow::Result<u32> {
         let IndexEntry::V1(index) = self.load_mut()?;
-
-        let v1::VersionedPhotoReference::V1(photo) = index
-            .pics
-            .remove(&photo_id)
-            .context("The image was not found")?;
-
-        Ok(photo.into())
+        Ok(index.total_count)
     }
 
     fn load_mut(&mut self) -> anyhow::Result<&mut IndexEntry> {

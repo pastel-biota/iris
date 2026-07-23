@@ -33,27 +33,6 @@ pub struct IndexEntryV1 {
 impl PhotoIndexProvider for OriginalSha256Index {
     const INDEX_NAME: &'static str = "sha256 index";
     type Entry = IndexEntry;
-
-    fn upsert(&mut self, photo: &PhotoReference) -> anyhow::Result<()> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-
-        let replaced = index
-            .pics
-            .insert(photo.hash.to_string(), photo.origin.clone());
-
-        if replaced.is_none() {
-            index.total_count += 1;
-        }
-
-        self.save()?;
-
-        Ok(())
-    }
-
-    fn total_count(&mut self) -> anyhow::Result<u32> {
-        let IndexEntry::V1(index) = self.load_mut()?;
-        Ok(index.total_count)
-    }
 }
 
 impl OriginalSha256Index {

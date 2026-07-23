@@ -12,7 +12,7 @@ use crate::{
 pub struct PhotoStorageRegistry {
     dir: PhotoStorageDirectory,
     pub federated_index: FederatedPhotoIndex,
-    local_index: SqlitePhotoIndex,
+    pub local_index: SqlitePhotoIndex,
 }
 
 pub struct NewPhotoParam {
@@ -83,6 +83,14 @@ impl PhotoStorageRegistry {
                 Ok(Some(self.federated_index.get_photos_meta(remote).await?))
             },
         }
+    }
+
+    pub async fn load_photo_ref(&self, id: &Identifier) -> anyhow::Result<Option<PhotoReference>> {
+        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
+            return Ok(None);
+        };
+
+        Ok(Some(photo_ref))
     }
 
     pub async fn sync_image_list(&mut self, name: &EntityName) -> anyhow::Result<()> {
@@ -208,5 +216,22 @@ impl PhotoStorageRegistry {
         };
 
         self.local_index.delete_photo(photo_id)
+    }
+
+    pub async fn insert_photo_reference(
+        &mut self,
+        photo: PhotoReference,
+    ) -> anyhow::Result<Option<()>> {
+        if self.load_photo_ref(photo.id()).await?.is_some() {
+            return Ok(None);
+        }
+
+        if let Some(local_id) = photo.origin.local_id() && !self.dir.photo_exists(local_id) {
+            anyhow::bail!("This photo has its ownership at the local, but the photo does not exist");
+        }
+
+        self.local_index.add_new_photo(photo.into()).await?;
+
+        Ok(Some(()))
     }
 }

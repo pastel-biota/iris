@@ -23,7 +23,6 @@ impl SqlitePhotoIndex {
 
         tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
-            let mut query = photos::table.into_boxed();
 
             diesel::dsl::insert_into(photos::table)
                 .values((

@@ -7,12 +7,10 @@ use std::{collections::{HashSet, VecDeque}, path::{Path, PathBuf}};
 
 use anyhow::Context;
 use clap::Parser;
-use config::Config as ConfigLoad;
-use rand::seq::IndexedRandom;
 use serde::Deserialize;
 
 use crate::{
-    auth::config::AuthConfig, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, model::EntityName, processor::config::ImageProcessConfig, repository::config::FederationConfig
+    auth::config::AuthConfig, entry::{migrate::MigrationOptions, user::UserOptions}, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, model::EntityName, processor::config::ImageProcessConfig, repository::config::FederationConfig
 };
 
 #[cfg(feature = "federation")]
@@ -40,31 +38,13 @@ enum SubCommands {
         #[clap(flatten)]
         user: UserOptions,
     },
-}
+    Migration {
+        #[clap(flatten)]
+        config: CommonOptions,
 
-#[derive(Clone, Debug, clap::Args)]
-#[command(group(
-    clap::ArgGroup::new("output")
-        .required(true)
-        .multiple(false)
-        .args(["write_to_file", "write_to_stdout"]),
-))]
-pub struct UserOptions {
-    #[clap(short, long)]
-    pub name: EntityName,
-
-    /// The file of the configuration file to be written
-    #[clap(short = 'w', long)]
-    pub write_to_file: Option<PathBuf>,
-
-    /// The file of the configuration file to be written
-    #[clap(short = 'W', long)]
-    pub write_to_stdout: bool,
-
-    /// Register the entity as a federation peer, which can only read whitelisted photos
-    /// and cannot use the administrative endpoints
-    #[clap(long)]
-    pub federation: bool,
+        #[clap(subcommand)]
+        migration: MigrationOptions,
+    },
 }
 
 #[derive(Clone, clap::Args)]
@@ -121,6 +101,7 @@ pub struct Entry {
 pub enum Command {
     Server,
     User(UserOptions),
+    Migration(MigrationOptions),
 } 
 
 pub fn parse_config() -> anyhow::Result<Entry> {
@@ -131,6 +112,9 @@ pub fn parse_config() -> anyhow::Result<Entry> {
         },
         SubCommands::User { config, user } => {
             (Command::User(user), config)
+        },
+        SubCommands::Migration { config, migration } => {
+            (Command::Migration(migration), config)
         }
     };
 

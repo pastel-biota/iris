@@ -85,6 +85,9 @@ async fn run() -> Result<(), anyhow::Error> {
         config::Command::User(user_config) => {
             entry::user::create_user(ctx, user_config).await?;
         },
+        config::Command::Migration(migration_config) => {
+            entry::migrate::migrate(ctx, ingest_scope, migration_config).await?;
+        },
     } 
 
     Ok(())

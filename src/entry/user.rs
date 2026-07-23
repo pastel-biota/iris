@@ -1,6 +1,36 @@
+#[allow(clippy::disallowed_types)]
+use std::path::PathBuf;
+
 use std::{io::Write as _, sync::Arc};
 
-use crate::{Context, config::UserOptions};
+use crate::{Context, model::EntityName};
+
+#[derive(Clone, Debug, clap::Args)]
+#[command(group(
+    clap::ArgGroup::new("output")
+        .required(true)
+        .multiple(false)
+        .args(["write_to_file", "write_to_stdout"]),
+))]
+pub struct UserOptions {
+    #[clap(short, long)]
+    pub name: EntityName,
+
+    /// The file of the configuration file to be written
+    #[clap(short = 'w', long)]
+    #[allow(clippy::disallowed_types)]
+    pub write_to_file: Option<PathBuf>,
+
+    /// The file of the configuration file to be written
+    #[clap(short = 'W', long)]
+    pub write_to_stdout: bool,
+
+    /// Register the entity as a federation peer, which can only read whitelisted photos
+    /// and cannot use the administrative endpoints
+    #[clap(long)]
+    pub federation: bool,
+}
+
 
 pub async fn create_user(ctx: Arc<Context>, user: UserOptions) -> anyhow::Result<()> {
     let config_file = user.write_to_file.unwrap();
