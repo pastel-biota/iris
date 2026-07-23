@@ -37,12 +37,13 @@ pub async fn reprocess(
     Path((photo_id,)): Path<(Identifier,)>,
 ) -> Result<impl IntoResponse, ApiError> {
     whitelist::ensure_photo_allowed(&ctx.auth, &session.clone().into(), &photo_id)
+        .await
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
     tracing::debug!("Loading the image");
 
     let photo = {
-        let mut registry = ctx.registry.write().await;
+        let registry = ctx.registry.read().await;
         registry
             .load_photo(&photo_id)
             .await

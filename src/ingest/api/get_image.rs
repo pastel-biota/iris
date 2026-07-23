@@ -47,9 +47,10 @@ pub async fn get_image(
     Path((photo_id, image_id)): Path<(Identifier, String)>,
 ) -> Result<impl IntoResponse, ApiError> {
     whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
+        .await
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
-    let mut registry = ctx.registry.write().await;
+    let registry = ctx.registry.read().await;
     let photo = registry
         .load_photo(&photo_id)
         .await
@@ -63,7 +64,7 @@ pub async fn get_image(
     ))?;
 
     let photo_stream = registry
-        .load_image(&photo_id, &image_id, image_meta)
+        .load_image(&photo.origin, &image_id, image_meta)
         .await
         .map_err(ApiError::internal_during("reading the image payload"))?;
 

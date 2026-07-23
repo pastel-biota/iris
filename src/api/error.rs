@@ -29,14 +29,14 @@ impl ApiError {
         move |err| kind(format!("{context}\n{err}"))
     }
 
-    pub fn internal<T: ToString>(err: T) -> Self {
-        ApiError::InternalError(err.to_string())
+    pub fn internal<T: std::fmt::Debug>(err: T) -> Self {
+        ApiError::InternalError(format!("{:#?}", err))
     }
 
-    pub fn internal_during<T: Display>(context: impl Display) -> impl FnMut(T) -> Self {
+    pub fn internal_during<T: std::fmt::Debug>(context: impl Display) -> impl FnMut(T) -> Self {
         move |err| {
             ApiError::InternalError(format!(
-                "there was an internal error during {context}\n{err}"
+                "there was an internal error during {context}\n{err:#?}"
             ))
         }
     }

@@ -30,11 +30,13 @@ pub async fn delete(
     ValidUserSession(session): ValidUserSession,
 ) -> Result<impl IntoResponse, ApiError> {
     whitelist::ensure_photo_allowed(&ctx.auth, &session.clone().into(), &photo_id)
+        .await
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
     let mut registry = ctx.registry.write().await;
     registry
         .unregister(&photo_id)
+        .await
         .map_err(ApiError::internal_during("unregistering the photo"))?;
 
     Ok(StatusCode::NO_CONTENT)

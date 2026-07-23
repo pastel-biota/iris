@@ -9,7 +9,7 @@ use axum::{
 use http::Method;
 
 use crate::{
-    Context, api::error::ApiError, auth::{extractor::IrisSession, whitelist::{self, PagedIdentifiers}}, federation::protocol::Endpoint, infra::api::types::{
+    Context, api::error::ApiError, auth::{config::Entity, extractor::IrisSession, session::Session}, federation::protocol::Endpoint, infra::api::types::{
         ClientError, SuccessfulResponse, success,
     }, ingest::api::scheme::PhotoReferenceSchema, model::Identifier
 };
@@ -54,31 +54,17 @@ pub async fn get_photos_list(
 ) -> Result<impl IntoResponse, ApiError> {
     let cursor = query.cursor;
     let size = query.size.unwrap_or(50) as usize;
+    let entity = entity_of(&session);
 
-    let photo_ids = whitelist::get_allowed_photos(&ctx.auth, &session, size, cursor.clone())
-        .map_err(ApiError::passthrough(ApiError::Forbidden))?;
-
-    let list = if let Some(ids) = photo_ids {
-        retrieve_from_provided_list(ctx, ids).await?
-    } else {
-        retrieve_from_whole_set(ctx.clone(), cursor.clone(), size).await?
-    };
-
-    Ok((StatusCode::OK, Json(success(list))))
-}
-
-async fn retrieve_from_whole_set(
-    ctx: Arc<Context>,
-    cursor: Option<Identifier>,
-    size: usize,
-) -> Result<GetPhotosListResponse, ApiError> {
-    let mut registry = ctx.registry.write().await;
+    let registry = ctx.registry.read().await;
     let photos = registry
-        .list_images(cursor.as_ref(), size)
+        .list_images(entity.as_ref(), cursor.as_ref(), size)
+        .await
         .map_err(ApiError::internal_during("reading the photo list"))?;
 
     let total_count = registry
-        .total_count()
+        .total_count(entity.as_ref())
+        .await
         .map_err(ApiError::internal_during("reading the total count"))?;
 
     let next_cursor = if photos.len() == size {
@@ -87,26 +73,13 @@ async fn retrieve_from_whole_set(
         None
     };
 
-    Ok(GetPhotosListResponse {
+    Ok((StatusCode::OK, Json(success(GetPhotosListResponse {
         total_count,
         next_cursor: next_cursor.cloned(),
         photos: photos.into_iter().map(Into::into).collect(),
-    })
+    }))))
 }
 
-async fn retrieve_from_provided_list(
-    ctx: Arc<Context>,
-    ids: PagedIdentifiers,
-) -> Result<GetPhotosListResponse, ApiError> {
-    let mut registry = ctx.registry.write().await;
-
-    let photos = registry
-        .get_photos_list_by_id_list(&ids.ids)
-        .map_err(ApiError::internal_during("reading the photo list"))?;
-
-    Ok(GetPhotosListResponse {
-        total_count: ids.total_count,
-        next_cursor: ids.next_cursor,
-        photos: photos.into_iter().map(Into::into).collect(),
-    })
+fn entity_of(session: &Session) -> Option<Entity> {
+    session.not_bypassed().map(|session| session.entity.clone())
 }

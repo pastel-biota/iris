@@ -80,11 +80,12 @@ pub async fn new_photo(
 
     {
         tracing::debug!("Retrieving registry for verifying the conflict");
-        let mut registry = ctx.registry.write().await;
+        let registry = ctx.registry.read().await;
         tracing::debug!("Retrieved registry");
 
         if registry
             .image_exists_with_hash(&sha256)
+            .await
             .map_err(ApiError::internal_during("checking the hash conflict"))?
         {
             return Err(ApiError::Conflict("hash conflicted".to_string()));
@@ -114,6 +115,7 @@ pub async fn new_photo(
         let mut registry = ctx.registry.write().await;
         let new_photo = registry
             .new_photo(new_photo)
+            .await
             .map_err(ApiError::internal_during("registering the photo"))?;
         registry
             .upload_original_image(&photo_id, &original_ext, &bytes)

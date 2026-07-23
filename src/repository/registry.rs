@@ -4,15 +4,15 @@ use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
 
 use crate::{
-    model::{EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, PhotoReference, Properties}, repository::{
-        config::FederationConfig, federated::FederatedPhotoIndex, io::{LengthedStream, ScopedPath}, local::io::PhotoStorageDirectory, photo_index::PhotoIndex
+    auth::config::Entity, infra::sqlite::SqliteConnection, model::{EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, PhotoReference, Properties}, repository::{
+        config::FederationConfig, federated::FederatedPhotoIndex, io::{LengthedStream, ScopedPath}, local::io::PhotoStorageDirectory, sqlite::SqlitePhotoIndex
     }
 };
 
 pub struct PhotoStorageRegistry {
     dir: PhotoStorageDirectory,
     pub federated_index: FederatedPhotoIndex,
-    local_index: PhotoIndex,
+    local_index: SqlitePhotoIndex,
 }
 
 pub struct NewPhotoParam {
@@ -27,32 +27,35 @@ pub struct NewPhotoParam {
 impl PhotoStorageRegistry {
     pub fn new(
         federation_config: FederationConfig,
+        sqlite_connection: SqliteConnection,
         base_dir: &ScopedPath
     ) -> Self {
         PhotoStorageRegistry {
             dir: PhotoStorageDirectory::new(base_dir),
             federated_index: FederatedPhotoIndex::new(federation_config),
-            local_index: PhotoIndex::new(base_dir),
+            local_index: SqlitePhotoIndex::new(sqlite_connection),
         }
     }
 
-    pub fn list_images(
-        &mut self,
+    pub async fn list_images(
+        &self,
+        entity: Option<&Entity>,
         beginning: Option<&Identifier>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
-        self.local_index.list_images(beginning, size)
+        self.local_index.list_images(entity, beginning, size).await
     }
 
-    pub fn get_photos_list_by_id_list(
-        &mut self,
+    pub async fn get_photos_list_by_id_list(
+        &self,
+        entity: Option<Entity>,
         ids: &[Identifier],
     ) -> anyhow::Result<Vec<PhotoReference>> {
-        self.local_index.get_photos_list_by_ids_list(ids)
+        self.local_index.get_photos_list_by_ids_list(entity, ids).await
     }
 
-    pub fn image_exists_with_hash(&mut self, hash: &str) -> anyhow::Result<bool> {
-        self.local_index.image_exists_with_hash(hash)
+    pub async fn image_exists_with_hash(&self, hash: &str) -> anyhow::Result<bool> {
+        self.local_index.image_exists_with_hash(hash).await
     }
 
     pub fn get_photos_list_by_hashes_list<'s, 'h>(
@@ -63,12 +66,12 @@ impl PhotoStorageRegistry {
 
     }
 
-    pub fn total_count(&mut self) -> anyhow::Result<u32> {
-        self.local_index.total_count()
+    pub async fn total_count(&self, entity: Option<&Entity>) -> anyhow::Result<u32> {
+        self.local_index.total_count(entity).await
     }
 
-    pub async fn load_photo(&mut self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(id)? else {
+    pub async fn load_photo(&self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
+        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
             return Ok(None);
         };
 
@@ -88,23 +91,21 @@ impl PhotoStorageRegistry {
             .context("Failed to retrieve the photos from federated node")?;
 
         for photo in photos.photos {
-            self.local_index.add_new_photo(&photo)?;
+            self.local_index.upsert_photo(photo).await?;
         }
 
         Ok(())
     }
 
+    /// Loads an image given the photo's already-resolved origin, avoiding a
+    /// redundant photo-ref lookup when the caller has already loaded the photo.
     pub async fn load_image(
-        &mut self,
-        photo_id: &Identifier,
+        &self,
+        origin: &PhotoOrigin,
         image_id: &str,
         image: &ImageMeta,
     ) -> anyhow::Result<LengthedStream> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(photo_id)? else {
-            anyhow::bail!("The photo with id {photo_id} is not found");
-        };
-
-        match &photo_ref.origin {
+        match origin {
             PhotoOrigin::Local(local_id) => {
                 self.dir.load_image(local_id, image_id, image).await
             },
@@ -115,30 +116,26 @@ impl PhotoStorageRegistry {
         }
     }
 
-    pub async fn load_original_image(&mut self, photo_id: &Identifier) -> anyhow::Result<Vec<u8>> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(photo_id)? else {
-            anyhow::bail!("The photo with id {photo_id} is not found");
-        };
-
-        let Some(local_id) = photo_ref.origin.local_id().cloned() else {
-            anyhow::bail!("You cannot retrieve the original image of non-local (federated) photo");
-        };
-
+    pub async fn load_original_image(&self, photo_id: &Identifier) -> anyhow::Result<Vec<u8>> {
         let photo = self
             .load_photo(photo_id)
             .await?
             .context("The photo does not exist")?;
+
+        let Some(local_id) = photo.origin.local_id() else {
+            anyhow::bail!("You cannot retrieve the original image of non-local (federated) photo");
+        };
 
         let Some(original) = &photo.original else {
             anyhow::bail!("This photo's original image is not available");
         };
 
         self.dir
-            .load_original_image(&local_id, original)
+            .load_original_image(local_id, original)
             .await
     }
 
-    pub fn new_photo(&mut self, meta: NewPhotoParam) -> anyhow::Result<PhotoMeta> {
+    pub async fn new_photo(&mut self, meta: NewPhotoParam) -> anyhow::Result<PhotoMeta> {
         let meta = PhotoMeta {
             origin: PhotoOrigin::Local(LocalIdentifier(meta.id)),
             original: Some(meta.original),
@@ -151,7 +148,7 @@ impl PhotoStorageRegistry {
         };
 
         self.dir.create_new_photo_meta(meta.clone())?;
-        self.local_index.add_new_photo(&meta.clone().into())?;
+        self.local_index.add_new_photo(meta.clone().into()).await?;
 
         Ok(meta)
     }
@@ -162,7 +159,7 @@ impl PhotoStorageRegistry {
         ext: &str,
         content: &[u8],
     ) -> anyhow::Result<()> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(id)? else {
+        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
             anyhow::bail!("The photo with id {id} is not found");
         };
 
@@ -182,34 +179,31 @@ impl PhotoStorageRegistry {
         image: &ImageMeta,
         content: &[u8],
     ) -> anyhow::Result<PhotoMeta> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(photo_id)? else {
-            anyhow::bail!("The photo with id {photo_id} is not found");
-        };
-
-        let Some(local_id) = photo_ref.origin.local_id().cloned() else {
-            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
-        };
-
         let mut photo = self
             .load_photo(photo_id)
             .await?
             .context("The photo does not exist")?;
+
+        let Some(local_id) = photo.origin.local_id().cloned() else {
+            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
+        };
+
         let meta = self
             .dir
             .upload_image(&local_id, image_id, image, content)
             .await?;
 
         photo.images.insert(image_id.to_string(), image.clone());
-        self.local_index.add_new_image(&local_id, image_id, image)?;
+        self.local_index.upsert_photo(photo.into()).await?;
 
         Ok(meta)
     }
 
-    pub fn unregister(
+    pub async fn unregister(
         &mut self,
         photo_id: &Identifier,
     ) -> anyhow::Result<()> {
-        if self.local_index.get_photo_ref(photo_id)?.is_none() {
+        if self.local_index.get_photo_ref(None, photo_id).await?.is_none() {
             anyhow::bail!("The photo with id {photo_id} is not found");
         };
 

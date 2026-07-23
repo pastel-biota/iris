@@ -1,19 +1,19 @@
 use std::sync::Mutex;
 
-use crate::{auth::{config::AuthConfig, session::SessionsStore}, repository::{io::ScopedPath, whitelist::WhitelistRepository}};
+use crate::{auth::{config::AuthConfig, session::SessionsStore}, infra::sqlite::SqliteConnection, repository::{io::ScopedPath, whitelist::WhitelistRepository}};
 
 pub struct AuthContext {
     pub config: AuthConfig,
-    pub state: Mutex<RuntimeState>
+    pub state: RuntimeState
 }
 
 pub struct RuntimeState {
-    pub sessions: SessionsStore,
+    pub sessions: Mutex<SessionsStore>,
     pub whitelist: WhitelistRepository,
 }
 
 impl AuthContext {
-    pub fn new(config: AuthConfig, base_dir: &ScopedPath) -> Self {
+    pub fn new(config: AuthConfig, db: SqliteConnection) -> Self {
         if config.unrestricted_instance.is_some_and(|x| x) {
             println!();
             println!(" \x1b[48;5;1;38;5;255;1m                                                 \x1b[m");
@@ -29,10 +29,10 @@ impl AuthContext {
 
         AuthContext {
             config,
-            state: Mutex::new(RuntimeState {
-                sessions: Default::default(),
-                whitelist: WhitelistRepository::new(base_dir),
-            }),
+            state: RuntimeState {
+                sessions: Mutex::new(Default::default()),
+                whitelist: WhitelistRepository::new(db),
+            },
         }
     }
 }

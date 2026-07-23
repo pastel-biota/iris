@@ -23,7 +23,7 @@ impl PhotoStorageDirectory {
         }
     }
 
-    pub fn load_photo_meta(&mut self, id: &LocalIdentifier) -> anyhow::Result<PhotoMeta> {
+    pub fn load_photo_meta(&self, id: &LocalIdentifier) -> anyhow::Result<PhotoMeta> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
 
         if !self.photo_exists(id) {
@@ -44,7 +44,7 @@ impl PhotoStorageDirectory {
     }
 
     pub async fn load_image(
-        &mut self,
+        &self,
         photo_id: &LocalIdentifier,
         image_id: &str,
         image: &ImageMeta,
@@ -63,7 +63,7 @@ impl PhotoStorageDirectory {
     }
 
     pub async fn load_original_image(
-        &mut self,
+        &self,
         photo_id: &LocalIdentifier,
         image: &ImageMeta,
     ) -> anyhow::Result<Vec<u8>> {

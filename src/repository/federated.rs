@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use tokio::sync::RwLock;
 
 use crate::{auth::endpoint::{LoginBody, LoginEndpoint, MeEndpoint}, federation::protocol::RequestError, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::{FederationConfig, FederationHost}, io::LengthedStream}};
 
 pub struct FederatedPhotoIndex {
     pub config: FederationConfig,
-    session: HashMap<String, String>,
+    session: RwLock<HashMap<String, String>>,
 }
 
 #[derive(Clone)]
@@ -24,7 +25,7 @@ impl FederatedPhotoIndex {
         }
     }
 
-    pub async fn list_photos(&mut self, name: &EntityName, size: Option<u32>, cursor: Option<Identifier>) -> anyhow::Result<PagedPhotoRefList> {
+    pub async fn list_photos(&self, name: &EntityName, size: Option<u32>, cursor: Option<Identifier>) -> anyhow::Result<PagedPhotoRefList> {
         let host = self.config.hosts.get(name)
             .with_context(|| format!("No such host configured: {name}"))?
             .clone();
@@ -55,7 +56,7 @@ impl FederatedPhotoIndex {
         })
     }
 
-    pub async fn get_photos_meta(&mut self, origin: &RemoteOrigin) -> anyhow::Result<PhotoMeta> {
+    pub async fn get_photos_meta(&self, origin: &RemoteOrigin) -> anyhow::Result<PhotoMeta> {
         let host = self.config.hosts.get(&origin.federator)
             .with_context(|| format!("No such host configured: {}", &origin.federator))?
             .clone();
@@ -81,7 +82,7 @@ impl FederatedPhotoIndex {
     }
 
     pub async fn get_photo_image(
-        &mut self,
+        &self,
         origin: &RemoteOrigin,
         image_id: &str
     ) -> anyhow::Result<LengthedStream> {
@@ -101,7 +102,7 @@ impl FederatedPhotoIndex {
         Ok(photo)
     }
 
-    async fn login(&mut self, host: &FederationHost) -> anyhow::Result<String> {
+    async fn login(&self, host: &FederationHost) -> anyhow::Result<String> {
         let cred = crate::federation::protocol::request::<LoginEndpoint>(
             None,
             &host.origin,
@@ -111,16 +112,16 @@ impl FederatedPhotoIndex {
             }
         ).await.context("Failed to log in to the federated host")?;
 
-        self.session.insert(host.origin.clone(), cred.session_key.clone());
+        self.session.write().await.insert(host.origin.clone(), cred.session_key.clone());
 
         Ok(cred.session_key)
     }
 
-    async fn ensure_logged_in(&mut self, host: &FederationHost) -> anyhow::Result<String> {
+    async fn ensure_logged_in(&self, host: &FederationHost) -> anyhow::Result<String> {
         // TODO: Handle session expire
 
         if let Some(session) = self.verify_token(host).await? {
-            return Ok(session.to_string());
+            return Ok(session);
         }
 
         self.login(host).await?;
@@ -129,22 +130,22 @@ impl FederatedPhotoIndex {
             .await?
             .context("Could not refresh the token")?;
 
-        Ok(token.to_string())
+        Ok(token)
     }
 
-    async fn verify_token(&mut self, host: &FederationHost) -> anyhow::Result<Option<&str>> {
-        let Some(session) = self.session.get(&host.origin) else {
+    async fn verify_token(&self, host: &FederationHost) -> anyhow::Result<Option<String>> {
+        let Some(session) = self.session.read().await.get(&host.origin).cloned() else {
             return Ok(None);
         };
 
         let me = crate::federation::protocol::request::<MeEndpoint>(
-            Some(session),
+            Some(&session),
             &host.origin,
             ()
         ).await;
 
         match me {
-            Ok(_) => Ok(Some(session.as_str())),
+            Ok(_) => Ok(Some(session)),
             Err(RequestError::Applictaion(http::StatusCode::UNAUTHORIZED, _)) => Ok(None),
             Err(RequestError::Applictaion(code, reason)) => Err(anyhow::anyhow!("The request to /auth/me failed with {code}: {reason}")),
             Err(RequestError::Anyhow(anyhow)) => Err(anyhow)

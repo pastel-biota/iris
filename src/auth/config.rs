@@ -25,18 +25,29 @@ impl Entity {
             Entity::Federation(entity) => &entity.name,
         }
     }
+
+    pub fn has_full_image_access(&self) -> bool {
+        match self {
+            Entity::User(entity) => entity.has_full_image_access,
+            Entity::Federation(entity) => entity.has_full_image_access,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserEntity {
     pub name: EntityName,
     pub password: HashedPassword,
+    #[serde(default)]
+    pub has_full_image_access: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FederationEntity {
     pub name: EntityName,
     pub password: HashedPassword,
+    #[serde(default)]
+    pub has_full_image_access: bool,
 }
 
 pub fn serialize_new_user(name: EntityName, password: HashedPassword) -> anyhow::Result<String> {
@@ -44,7 +55,7 @@ pub fn serialize_new_user(name: EntityName, password: HashedPassword) -> anyhow:
 
     config.entities.insert(
         name.clone(),
-        Entity::User(UserEntity { name, password })
+        Entity::User(UserEntity { name, password, has_full_image_access: false })
     );
 
     Ok(toml::to_string(&config)?)

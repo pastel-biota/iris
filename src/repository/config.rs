@@ -15,3 +15,4 @@ pub struct FederationHost {
     pub password: String,
     pub origin: String,
 }
+

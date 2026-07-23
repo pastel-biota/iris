@@ -20,17 +20,16 @@ pub async fn login_to_entity(ctx: &AuthContext, username: &EntityName, password:
         return Err(LoginError::InvalidCredential);
     }
 
-    let session_key = ctx.state.lock()
+    let session_key = ctx.state.sessions.lock()
         .unwrap()
-        .sessions
         .new_session(entity.unwrap().clone())?;
 
     Ok(session_key)
 }
 
 pub async fn verify_session(ctx: &AuthContext, session_key: &str) -> anyhow::Result<Option<ValidSession>> {
-    ctx.state.lock()
+    ctx.state.sessions
+        .lock()
         .unwrap()
-        .sessions
         .get_session(session_key)
 }

@@ -11,9 +11,9 @@ pub fn serialize_new_entity(name: &EntityName, password: HashedPassword, federat
     let mut config = PartialConfig::default();
 
     let entity = if federation {
-        Entity::Federation(FederationEntity { name: name.clone(), password })
+        Entity::Federation(FederationEntity { name: name.clone(), password, has_full_image_access: false })
     } else {
-        Entity::User(UserEntity { name: name.clone(), password })
+        Entity::User(UserEntity { name: name.clone(), password, has_full_image_access: false })
     };
 
     config.auth.entities.insert(name.clone(), entity);

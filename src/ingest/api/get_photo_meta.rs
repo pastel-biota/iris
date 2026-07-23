@@ -52,9 +52,10 @@ pub async fn get_photo_meta(
     Path((photo_id,)): Path<(Identifier,)>,
 ) -> Result<impl IntoResponse, ApiError> {
     whitelist::ensure_photo_allowed(&ctx.auth, &session, &photo_id)
+        .await
         .map_err(ApiError::passthrough(ApiError::Forbidden))?;
 
-    let mut registry = ctx.registry.write().await;
+    let registry = ctx.registry.read().await;
     let photo = registry
         .load_photo(&photo_id)
         .await

@@ -5,14 +5,7 @@ use std::{process::ExitCode, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::{
-    auth::context::AuthContext,
-    config::{BaseConfig, Entry, parse_config},
-    entry::server::RunServerResourcees,
-    event::{EventSender, create_event_bus},
-    infra::api::rate_limit::RateLimit,
-    ingest::context::{IngestContext, ServiceContext},
-    processor::ProcessorContext,
-    repository::{io::ScopedPath, registry::PhotoStorageRegistry},
+    auth::context::AuthContext, config::{BaseConfig, Entry, parse_config}, entry::server::RunServerResourcees, event::{EventSender, create_event_bus}, infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection}, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::{io::ScopedPath, registry::PhotoStorageRegistry},
 };
 
 pub mod config;
@@ -71,10 +64,12 @@ async fn run() -> Result<(), anyhow::Error> {
 
     let ingest_scope = ScopedPath::from_allowed_dir(&config.ingest.dir);
 
+    let sqlite = SqliteConnection::connect(&ingest_scope).await?;
+
     let ctx = Arc::new(Context {
-        registry: RwLock::new(PhotoStorageRegistry::new(config.federation, &ingest_scope)),
+        registry: RwLock::new(PhotoStorageRegistry::new(config.federation, sqlite.clone(), &ingest_scope)),
         service: ServiceContext::try_from_config(&config.processors)?,
-        auth: AuthContext::new(config.auth, &ingest_scope),
+        auth: AuthContext::new(config.auth, sqlite.clone()),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
         base: config.base,
