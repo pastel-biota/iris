@@ -134,8 +134,10 @@ impl SqlitePhotoIndex {
                 query = query.filter(photos::id.gt(begin));
             }
 
+            // TODO: Make the sort customizable
             let query = query
                 .select((photos::id, photos::meta_json))
+                .order_by(photos::shot_time_unix.desc())
                 .limit(size as i64);
 
             query

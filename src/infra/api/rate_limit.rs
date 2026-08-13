@@ -99,7 +99,7 @@ pub async fn global_rate_limit(req: Request, next: Next) -> Response {
             .into_response();
     };
 
-    if let Err(err) = enforce(&ctx, ClientIp(ip), Quota::per_second(20)).await {
+    if let Err(err) = enforce(&ctx, ClientIp(ip), Quota::per_second(100)).await {
         return err.into_response();
     }
 
