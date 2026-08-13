@@ -14,6 +14,10 @@ pub async fn ensure_photo_allowed(ctx: &AuthContext, session: &Session, photo: &
         return Ok(());
     };
 
+    if session.entity.has_full_image_access() {
+        return Ok(())
+    }
+
     let allowed = ctx.state.whitelist.photo_allowed(session.entity.name(), photo).await?;
 
     if allowed {
