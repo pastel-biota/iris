@@ -1,18 +1,61 @@
 on:
   push:
+    branches:
+      - main
     tags:
       - v*
 
 jobs:
-  build-and-release:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Cache Rust build artifact
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Rust project
+        run: cargo build --release
+
+      - name: Package release binary
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: tar -C target/release -czf iris.tar.gz iris
+
+      - name: Upload release binary
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: iris
+          path: iris.tar.gz
+          compression-level: 0
+          retention-days: 1
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       packages: write
 
     steps:
-      - name: Checkout repos
+      - name: Checkout repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Download release binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: iris
+          path: /tmp/iris-artifact
+
+      - name: Extract release binary
+        run: |
+          mkdir -p target/release
+          tar -C target/release -xzf /tmp/iris-artifact/iris.tar.gz
 
       - name: Log in to Container Registry
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2  # v4.0.0
@@ -20,12 +63,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache Rust build artifact
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build Rust project
-        run: cargo build --release
 
       - name: Build and push Docker image
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
