@@ -40,7 +40,7 @@ impl PhotoStorageRegistry {
     pub async fn list_images(
         &self,
         entity: Option<&Entity>,
-        beginning: Option<&Identifier>,
+        beginning: Option<(i64, &Identifier)>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         self.local_index.list_images(entity, beginning, size).await

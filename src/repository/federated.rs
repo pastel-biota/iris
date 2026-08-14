@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 use tokio::sync::RwLock;
 
-use crate::{auth::endpoint::{LoginBody, LoginEndpoint, MeEndpoint}, federation::protocol::RequestError, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, Identifier, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::{FederationConfig, FederationHost}, io::LengthedStream}};
+use crate::{auth::endpoint::{LoginBody, LoginEndpoint, MeEndpoint}, federation::protocol::RequestError, ingest::api::{get_image::{GetImageEndpoint, GetImageRequest}, get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest}, get_photos_list::{GetPhotosListCursor, GetPhotosListEndpoint, GetPhotosListQuery}}, model::{EntityName, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin}, repository::{config::{FederationConfig, FederationHost}, io::LengthedStream}};
 
 pub struct FederatedPhotoIndex {
     pub config: FederationConfig,
@@ -13,7 +13,7 @@ pub struct FederatedPhotoIndex {
 #[derive(Clone)]
 pub struct PagedPhotoRefList {
     pub photos: Vec<PhotoReference>,
-    pub next_cursor: Option<Identifier>,
+    pub next_cursor: Option<GetPhotosListCursor>,
     pub total_count: u32,
 }
 
@@ -25,7 +25,7 @@ impl FederatedPhotoIndex {
         }
     }
 
-    pub async fn list_photos(&self, name: &EntityName, size: Option<u32>, cursor: Option<Identifier>) -> anyhow::Result<PagedPhotoRefList> {
+    pub async fn list_photos(&self, name: &EntityName, size: Option<u32>, cursor: Option<GetPhotosListCursor>) -> anyhow::Result<PagedPhotoRefList> {
         let host = self.config.hosts.get(name)
             .with_context(|| format!("No such host configured: {name}"))?
             .clone();
@@ -152,4 +152,3 @@ impl FederatedPhotoIndex {
         }
     }
 }
-

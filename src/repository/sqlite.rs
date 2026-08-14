@@ -108,11 +108,11 @@ impl SqlitePhotoIndex {
     pub async fn list_images(
         &self,
         entity: Option<&Entity>,
-        beginning: Option<&Identifier>,
+        beginning: Option<(i64, &Identifier)>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoReference>> {
         let restrict_to_entity = restrict_to_entity(entity);
-        let begin_cursor = beginning.map(|cursor| cursor.to_string());
+        let begin_cursor = beginning.map(|(shot_time_unix, id)| (shot_time_unix, id.to_string()));
         let pool = self.db.pool();
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
@@ -130,14 +130,20 @@ impl SqlitePhotoIndex {
                 ));
             }
 
-            if let Some(begin) = &begin_cursor {
-                query = query.filter(photos::id.lt(begin));
+            if let Some((begin_shot_time_unix, begin_id)) = &begin_cursor {
+                query = query.filter(
+                    photos::shot_time_unix
+                        .lt(begin_shot_time_unix)
+                        .or(photos::shot_time_unix
+                            .eq(begin_shot_time_unix)
+                            .and(photos::id.lt(begin_id))),
+                );
             }
 
             // TODO: Make the sort customizable
             let query = query
                 .select((photos::id, photos::meta_json))
-                .order_by(photos::shot_time_unix.desc())
+                .order_by((photos::shot_time_unix.desc(), photos::id.desc()))
                 .limit(size as i64);
 
             query
@@ -267,4 +273,76 @@ fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoReference> {
             reference.ok()
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, str::FromStr as _};
+
+    use super::*;
+    use crate::{
+        model::{LocalIdentifier, PhotoOrigin},
+        repository::io::ScopedPath,
+    };
+
+    #[tokio::test]
+    async fn list_images_paginates_by_shot_time_then_id_without_duplicates() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "iris-sqlite-pagination-{}",
+            ulid::Ulid::new()
+        ));
+        std::fs::create_dir(&temp_dir).unwrap();
+        let scope = ScopedPath::from_allowed_dir(&temp_dir);
+        let db = SqliteConnection::connect(&scope).await.unwrap();
+        let mut index = SqlitePhotoIndex::new(db);
+
+        for photo in [
+            photo_reference("202601-MMMMM", 1_000),
+            photo_reference("202601-ZZZZZ", 900),
+            photo_reference("202601-YYYYY", 900),
+            photo_reference("202601-AAAAA", 900),
+            photo_reference("202601-XXXXX", 800),
+        ] {
+            index.add_new_photo(photo).await.unwrap();
+        }
+
+        let first_page = index.list_images(None, None, 2).await.unwrap();
+        assert_eq!(ids(&first_page), ["202601-MMMMM", "202601-ZZZZZ"]);
+
+        let first_cursor = first_page
+            .last()
+            .map(|photo| (photo.shot_time.timestamp(), photo.id()));
+        let second_page = index.list_images(None, first_cursor, 2).await.unwrap();
+        assert_eq!(ids(&second_page), ["202601-YYYYY", "202601-AAAAA"]);
+
+        let second_cursor = second_page
+            .last()
+            .map(|photo| (photo.shot_time.timestamp(), photo.id()));
+        let third_page = index.list_images(None, second_cursor, 2).await.unwrap();
+        assert_eq!(ids(&third_page), ["202601-XXXXX"]);
+
+        drop(index);
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    fn photo_reference(id: &str, shot_time_unix: i64) -> PhotoReference {
+        let id = Identifier::from_str(id).unwrap();
+
+        PhotoReference {
+            year: id.year,
+            month: id.month,
+            hash: id.to_string(),
+            origin: PhotoOrigin::Local(LocalIdentifier(id)),
+            images: HashMap::new(),
+            tags: HashMap::new(),
+            shot_time: chrono::DateTime::<chrono::Utc>::from_timestamp(shot_time_unix, 0)
+                .unwrap()
+                .fixed_offset(),
+            representative_rgb: [0, 0, 0],
+        }
+    }
+
+    fn ids(photos: &[PhotoReference]) -> Vec<String> {
+        photos.iter().map(|photo| photo.id().to_string()).collect()
+    }
 }
