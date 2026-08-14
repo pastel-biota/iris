@@ -131,7 +131,7 @@ impl SqlitePhotoIndex {
             }
 
             if let Some(begin) = &begin_cursor {
-                query = query.filter(photos::id.gt(begin));
+                query = query.filter(photos::id.lt(begin));
             }
 
             // TODO: Make the sort customizable
