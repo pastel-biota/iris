@@ -27,14 +27,6 @@ impl PhotoMeta {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OriginalImageMeta {
-    pub width: u32,
-    pub height: u32,
-    pub extension: String,
-    pub mime: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ImageMeta {
     pub width: u32,
     pub height: u32,
