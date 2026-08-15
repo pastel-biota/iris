@@ -1,6 +1,4 @@
-use axum::response::{Response, IntoResponse};
-
-use crate::{api::error::ApiError, auth::session::SESSION_DURATION, infra::api::types::client_error};
+use crate::{api::error::ApiError, auth::session::SESSION_DURATION};
 
 pub const SESSION_COOKIE: &str = "iris-secret";
 
@@ -16,6 +14,7 @@ pub fn extract_from_header(authorization: &str) -> Result<Option<&str>, ApiError
     Ok(Some(value.trim()))
 }
 
+
 pub fn create_cookie(session_key: &str, domain: &str) -> String {
     let max_age = SESSION_DURATION.num_seconds();
     format!("{SESSION_COOKIE}={session_key}; Domain={domain}; Max-Age={max_age}; HttpOnly; SameSite=Lax")
@@ -28,4 +27,3 @@ pub fn extract_from_cookie(cookie: &str) -> Option<&str> {
         .find(|(key, _)| key == &SESSION_COOKIE)
         .map(|(_, value)| value)
 }
-

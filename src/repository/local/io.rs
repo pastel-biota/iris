@@ -123,7 +123,7 @@ impl PhotoStorageDirectory {
         Ok(())
     }
 
-    pub fn update_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
+    pub fn _update_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
         let Some(id) = meta.origin.local_id() else {
             bail!("The PhotoMeta is not local to this instance");
         };

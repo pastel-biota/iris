@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context as _, bail};
 
 use crate::{
-    model::{Identifier, ImageMeta, PhotoOrigin, PhotoReference}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
+    model::{Identifier, PhotoOrigin}, repository::{io::ScopedPath, photo_index::PhotoIndexProvider},
 };
 
 #[derive(Debug)]
@@ -108,6 +108,7 @@ impl OriginalSha256Index {
         Ok(self.content.as_mut().unwrap())
     }
 
+    #[allow(unused)]
     fn save(&mut self) -> anyhow::Result<()> {
         let bytes = {
             let entry = self.load_mut()?;

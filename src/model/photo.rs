@@ -5,7 +5,7 @@ use std::{
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{EntityName, Identifier, LocalIdentifier, PhotoOrigin};
+use crate::model::{Identifier, PhotoOrigin};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhotoMeta {
@@ -19,6 +19,7 @@ pub struct PhotoMeta {
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
 }
+
 
 impl PhotoMeta {
     pub fn id(&self) -> &Identifier {
@@ -115,4 +116,3 @@ impl From<PhotoMeta> for PhotoReference {
         }
     }
 }
-

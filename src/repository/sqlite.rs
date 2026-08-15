@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
-use diesel::{prelude::*, query_builder::BoxedSqlQuery};
+use diesel::prelude::*;
 
 use crate::{
-    auth::config::Entity, model::{Identifier, ImageMeta, LocalIdentifier, PhotoReference},
+    auth::config::Entity, model::{Identifier, PhotoReference},
 };
 
 use crate::infra::{schema::{photos, whitelist}, sqlite::SqliteConnection};
@@ -219,7 +219,7 @@ impl SqlitePhotoIndex {
         Ok(rows_into_references(rows))
     }
 
-    pub fn delete_photo(&mut self, photo_id: &Identifier) -> anyhow::Result<()> {
+    pub fn delete_photo(&mut self, _photo_id: &Identifier) -> anyhow::Result<()> {
         todo!();
     }
 

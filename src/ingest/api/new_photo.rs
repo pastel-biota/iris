@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    body::{Body, to_bytes},
+    body::Body,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
 };
-use futures_util::TryStreamExt;
 use http::request::Parts;
 
 use crate::{
@@ -18,7 +17,7 @@ use crate::{
         technicals::{image::{
             process::{get_hash, process_image},
             property::process_properties,
-        }, stream::SizedStream},
+        }},
     }, model::Identifier, repository::registry::NewPhotoParam,
 };
 

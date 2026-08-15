@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use anyhow::Context as _;
 
 use crate::{
-    model::{self, Identifier, ImageMeta, LocalIdentifier, PhotoReference}, repository::{io::ScopedPath},
+    model, repository::io::ScopedPath,
 };
 use crate::repository::photo_index::PhotoIndexProvider;
 
@@ -30,7 +28,7 @@ mod v1 {
     use std::collections::HashMap;
 
     #[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
-    pub(super) struct IndexEntry {
+    pub struct IndexEntry {
         pub total_count: u32,
         pub pics: HashMap<Identifier, VersionedPhotoReference>,
     }
@@ -113,6 +111,7 @@ impl ReferenceIndex {
         Ok(self.content.as_mut().unwrap())
     }
 
+    #[allow(unused)]
     fn save(&mut self) -> anyhow::Result<()> {
         let bytes = {
             let entry = self.load_mut()?;

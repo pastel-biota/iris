@@ -1,7 +1,6 @@
-use std::{collections::HashMap, io::{Read as _, Write}, sync::Arc};
+use std::{collections::HashMap, io::{Write}, sync::Arc};
 
 use anyhow::Context as _;
-use tracing::Instrument;
 
 use crate::{Context, model::EntityName, repository::{io::ScopedPath, photo_index::reference::ReferenceIndex}};
 

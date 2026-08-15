@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fmt::{self, Display},
     ops::Deref,
     str::FromStr,

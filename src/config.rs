@@ -10,11 +10,8 @@ use clap::Parser;
 use serde::Deserialize;
 
 use crate::{
-    auth::config::AuthConfig, entry::{migrate::MigrationOptions, user::UserOptions}, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, model::EntityName, processor::config::ImageProcessConfig, repository::config::FederationConfig
+    auth::config::AuthConfig, entry::{migrate::MigrationOptions, user::UserOptions}, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, processor::config::ImageProcessConfig, repository::config::FederationConfig
 };
-
-#[cfg(feature = "federation")]
-use crate::federation::config::FederationConfig;
 
 #[derive(clap::Parser)]
 struct Args {

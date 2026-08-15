@@ -81,7 +81,7 @@ impl SizedStream {
 pub struct StreamPayloadHandle<'s> {
     ephemeral_path: PathBuf,
     semaphore: &'s Semaphore,
-    io_handle: SemaphorePermit<'s>,
+    _io_handle: SemaphorePermit<'s>,
 }
 
 impl<'s> StreamPayloadHandle<'s> {
@@ -92,7 +92,7 @@ impl<'s> StreamPayloadHandle<'s> {
         Ok(Self {
             ephemeral_path: path,
             semaphore,
-            io_handle,
+            _io_handle: io_handle,
         })
     }
 

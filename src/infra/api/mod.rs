@@ -7,9 +7,9 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{Extension, http::StatusCode, routing::get};
-use http::{Method, header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE}, method};
+use http::{Method, header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE}};
 use tokio::net::TcpListener;
-use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
+use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
 use utoipa_redoc::{Redoc, Servable as _};

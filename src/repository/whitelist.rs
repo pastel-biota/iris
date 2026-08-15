@@ -28,7 +28,6 @@ impl WhitelistRepository {
 
         let exists = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
-            let mut query = whitelist::table.into_boxed();
 
             diesel::select(dsl::exists(
                 whitelist::table.filter(
@@ -46,6 +45,9 @@ impl WhitelistRepository {
     }
 }
 
+// TODO: Remove this module
+#[allow(unused)]
+#[allow(clippy::all)]
 mod old_json_impl {
     use anyhow::Context as _;
     use super::WhitelistRepositoryError;

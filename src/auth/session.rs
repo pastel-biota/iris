@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use rand::RngExt;
 
-use crate::{auth::config::Entity, infra::api::types::SuccessfulResponse};
+use crate::auth::config::Entity;
 
 pub const SESSION_DURATION: chrono::Duration = chrono::Duration::days(7);
 
@@ -15,6 +15,7 @@ pub enum Session {
     Valid(ValidSession),
     Bypassed,
 }
+
 
 impl Session {
     pub fn bypass_or_verify(&self, verify_fn: impl FnOnce(&ValidSession) -> bool) -> bool {
@@ -90,4 +91,3 @@ impl ValidSession {
         }
     }
 }
-

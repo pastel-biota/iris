@@ -4,10 +4,7 @@ pub mod reference;
 
 use anyhow::Context as _;
 
-use crate::{
-    model::{Identifier, ImageMeta, LocalIdentifier, PhotoReference},
-    repository::{io::ScopedPath, photo_index::reference::ReferenceIndex},
-};
+use crate::repository::io::ScopedPath;
 pub trait PhotoIndexProvider {
     const INDEX_NAME: &'static str;
     type Entry: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug;

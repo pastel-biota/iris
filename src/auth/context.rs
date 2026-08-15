@@ -1,11 +1,12 @@
 use std::sync::Mutex;
 
-use crate::{auth::{config::AuthConfig, session::SessionsStore}, infra::sqlite::SqliteConnection, repository::{io::ScopedPath, whitelist::WhitelistRepository}};
+use crate::{auth::{config::AuthConfig, session::SessionsStore}, infra::sqlite::SqliteConnection, repository::whitelist::WhitelistRepository};
 
 pub struct AuthContext {
     pub config: AuthConfig,
     pub state: RuntimeState
 }
+
 
 pub struct RuntimeState {
     pub sessions: Mutex<SessionsStore>,
@@ -36,4 +37,3 @@ impl AuthContext {
         }
     }
 }
-

@@ -1,8 +1,6 @@
-use std::collections::HashMap;
+use anyhow::Context as _;
 
-use anyhow::{Context as _, bail};
-
-use crate::{model::{Identifier, ImageMeta, PhotoOrigin, PhotoReference}, repository::io::ScopedPath};
+use crate::{model::{Identifier, PhotoOrigin, PhotoReference}, repository::io::ScopedPath};
 
 #[derive(Debug)]
 pub struct DateImageIndex {
