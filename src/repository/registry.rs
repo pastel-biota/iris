@@ -230,7 +230,7 @@ impl PhotoStorageRegistry {
             anyhow::bail!("This photo has its ownership at the local, but the photo does not exist");
         }
 
-        self.local_index.add_new_photo(photo.into()).await?;
+        self.local_index.add_new_photo(photo).await?;
 
         Ok(Some(()))
     }

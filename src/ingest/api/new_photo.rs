@@ -75,7 +75,7 @@ pub async fn new_photo(
 
     tracing::info!("Beginning registeration");
 
-    let sha256 = get_hash(&bytes);
+    let sha256 = get_hash(bytes);
 
     {
         tracing::debug!("Retrieving registry for verifying the conflict");
@@ -117,7 +117,7 @@ pub async fn new_photo(
             .await
             .map_err(ApiError::internal_during("registering the photo"))?;
         registry
-            .upload_original_image(&photo_id, &original_ext, &bytes)
+            .upload_original_image(&photo_id, &original_ext, bytes)
             .await
             .map_err(ApiError::internal_during("uploading the original image"))?;
 

@@ -8,7 +8,7 @@ use futures_util::{Stream, StreamExt};
 use tokio::{pin, sync::{Semaphore, SemaphorePermit}};
 
 // Maximum 1G
-pub const MAX_OVERALL_SIZE_BYTES: usize = 1024 * 1024 * 1024 * 1;
+pub const MAX_OVERALL_SIZE_BYTES: usize = 1024 * 1024 * 1024;
 
 // Maximum 300M
 pub const OPENED_OVERALL_SIZE_BYTES: usize = 1024 * 1024 * 300;
@@ -19,6 +19,12 @@ pub const MAX_PER_STREAM_SIZE_BYTES: usize = 1024 * 1024 * 100;
 pub struct SizedStream {
     io_sem: Semaphore,
     mem_sem: Semaphore,
+}
+
+impl Default for SizedStream {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SizedStream {
@@ -56,7 +62,7 @@ impl SizedStream {
         let mut size = 0usize;
 
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+            let chunk = chunk.map_err(|e| std::io::Error::other(e))?;
 
             let new_size = size + chunk.len();
 

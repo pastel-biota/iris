@@ -3,7 +3,7 @@ pub mod config;
 pub mod context;
 pub mod serialize;
 pub mod session;
-pub mod auth;
+pub mod service;
 pub mod extractor;
 pub mod api;
 pub mod protocol;

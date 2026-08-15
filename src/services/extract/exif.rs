@@ -79,7 +79,7 @@ impl ExifData {
 fn exif_to_image_property(exif: &ExifData) -> anyhow::Result<ExifPayload> {
     let gps_lat = gps_degree(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, ("S", "N"))?;
     let gps_long = gps_degree(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, ("W", "E"))?;
-    let gps_lat_lng = gps_lat.and_then(|lat| gps_long.map(|long| (lat, long)));
+    let gps_lat_lng = gps_lat.zip(gps_long);
 
     let f_number = exif
         .get_rational(Tag::FNumber)?

@@ -53,7 +53,7 @@ where
             }
         };
 
-        let Some(session) = super::auth::verify_session(&ctx.auth, session_id).await.unwrap() else {
+        let Some(session) = super::service::verify_session(&ctx.auth, session_id).await.unwrap() else {
             return Err(ApiError::Unauthorized("The provided session is not valid or expired".to_string()))
        };
 

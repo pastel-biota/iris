@@ -26,11 +26,11 @@ macro_rules! symmetrical_from_into {
             }
         }
 
-        impl Into<$equiv> for $ident {
-            fn into(self) -> $equiv {
+        impl From<$ident> for $equiv {
+            fn from(ident: $ident) -> $equiv {
                 $equiv {
                     $($fident : {
-                        let ret = self . $fident;
+                        let ret = ident . $fident;
                         $(
                             let func = |$fn_ident: $rty| -> $rty2 { type Rty = $rty2; $expr };
                             let ret : $rty2 = func(ret);

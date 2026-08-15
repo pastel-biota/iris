@@ -120,7 +120,7 @@ pub fn parse_config() -> anyhow::Result<Entry> {
     let mut known_files: HashSet<PathBuf> = HashSet::new();
 
     if let Some(configs) = args.config.merge(config).configs {
-        importing.extend(configs.iter().map(|x| PathBuf::from(x)));
+        importing.extend(configs.iter().map(PathBuf::from));
     } else {
         importing.push_back(PathBuf::from("iris.toml"));
     }
