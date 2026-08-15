@@ -1,0 +1,82 @@
+use std::{
+    collections::HashMap,
+    fmt::{self, Display},
+    ops::Deref,
+    str::FromStr,
+};
+
+use anyhow::bail;
+
+use crate::model::Identifier;
+
+#[derive(
+    Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+pub struct EntityName(String);
+
+impl Display for EntityName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Deref for EntityName {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FromStr for EntityName {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s
+            .chars()
+            .all(|ch: char| ch.is_ascii_alphabetic() || ch == '-' || ch == '_')
+        {
+            bail!(
+                "There is a invalid character - only 0..9, a..z, A..Z, hyphen, underscore can be used"
+            )
+        }
+
+        Ok(EntityName(s.to_string()))
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum Whitelist {
+    Select { pics: Vec<Identifier> },
+    Everything,
+}
+
+impl Whitelist {
+    pub fn new_selective() -> Self {
+        Self::Select { pics: Vec::new() }
+    }
+
+    pub fn allow_photos(self, photos: &[Identifier]) -> Self {
+        match self {
+            Whitelist::Select { mut pics } => {
+                pics.extend(photos.iter().cloned());
+                Whitelist::Select { pics }
+            }
+            Whitelist::Everything => self,
+        }
+    }
+
+    pub fn is_allowed(&self, id: &Identifier) -> bool {
+        match self {
+            Self::Select { pics } => pics.contains(id),
+            Self::Everything => true,
+        }
+    }
+
+    pub fn seleted_pics(&self) -> Option<&[Identifier]> {
+        match self {
+            Self::Select { pics } => Some(pics),
+            Self::Everything => None,
+        }
+    }
+}
