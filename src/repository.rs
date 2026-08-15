@@ -6,5 +6,3 @@ pub mod federated;
 pub mod config;
 pub mod sqlite;
 
-pub use local::*;
-
