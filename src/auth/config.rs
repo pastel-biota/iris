@@ -55,9 +55,12 @@ pub fn serialize_new_user(name: EntityName, password: HashedPassword) -> anyhow:
 
     config.entities.insert(
         name.clone(),
-        Entity::User(UserEntity { name, password, has_full_image_access: false })
+        Entity::User(UserEntity {
+            name,
+            password,
+            has_full_image_access: false,
+        }),
     );
 
     Ok(toml::to_string(&config)?)
 }
-

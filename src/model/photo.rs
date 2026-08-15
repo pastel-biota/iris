@@ -1,6 +1,4 @@
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
@@ -19,7 +17,6 @@ pub struct PhotoMeta {
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
 }
-
 
 impl PhotoMeta {
     pub fn id(&self) -> &Identifier {

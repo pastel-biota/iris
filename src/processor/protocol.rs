@@ -12,5 +12,3 @@ pub struct ImageProcessJob {
     pub image_id: String,
     pub target: ResizeTargets,
 }
-
-

@@ -4,10 +4,14 @@ use anyhow::Context as _;
 use diesel::prelude::*;
 
 use crate::{
-    auth::config::Entity, model::{Identifier, PhotoReference},
+    auth::config::Entity,
+    model::{Identifier, PhotoReference},
 };
 
-use crate::infra::{schema::{photos, whitelist}, sqlite::SqliteConnection};
+use crate::infra::{
+    schema::{photos, whitelist},
+    sqlite::SqliteConnection,
+};
 
 pub struct SqlitePhotoIndex {
     db: SqliteConnection,
@@ -27,10 +31,13 @@ impl SqlitePhotoIndex {
             diesel::dsl::insert_into(photos::table)
                 .values((
                     photos::id.eq(photo.id().to_string()),
-                    photos::federated_by.eq(photo.origin.federator().map(|entity_name| entity_name.to_string())),
+                    photos::federated_by.eq(photo
+                        .origin
+                        .federator()
+                        .map(|entity_name| entity_name.to_string())),
                     photos::original_sha256.eq(&photo.hash),
                     photos::shot_time_unix.eq(photo.shot_time.timestamp()),
-                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap())
+                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
                 ))
                 .execute(&mut conn)
                 .context("Failed to update the DB")?;
@@ -50,10 +57,13 @@ impl SqlitePhotoIndex {
             diesel::dsl::insert_into(photos::table)
                 .values((
                     photos::id.eq(photo.id().to_string()),
-                    photos::federated_by.eq(photo.origin.federator().map(|entity_name| entity_name.to_string())),
+                    photos::federated_by.eq(photo
+                        .origin
+                        .federator()
+                        .map(|entity_name| entity_name.to_string())),
                     photos::original_sha256.eq(&photo.hash),
                     photos::shot_time_unix.eq(photo.shot_time.timestamp()),
-                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap())
+                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
                 ))
                 .on_conflict(photos::id)
                 .do_update()
@@ -268,7 +278,11 @@ fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoReference> {
             let reference = serde_json::from_str::<PhotoReference>(&meta_json);
 
             if let Err(error) = &reference {
-                tracing::warn!("Reference JSON in DB has corruption: for ID {}: {}", id, error);
+                tracing::warn!(
+                    "Reference JSON in DB has corruption: for ID {}: {}",
+                    id,
+                    error
+                );
             }
             reference.ok()
         })
@@ -287,10 +301,8 @@ mod tests {
 
     #[tokio::test]
     async fn list_images_paginates_by_shot_time_then_id_without_duplicates() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "iris-sqlite-pagination-{}",
-            ulid::Ulid::new()
-        ));
+        let temp_dir =
+            std::env::temp_dir().join(format!("iris-sqlite-pagination-{}", ulid::Ulid::new()));
         std::fs::create_dir(&temp_dir).unwrap();
         let scope = ScopedPath::from_allowed_dir(&temp_dir);
         let db = SqliteConnection::connect(&scope).await.unwrap();

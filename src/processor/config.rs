@@ -21,4 +21,3 @@ pub enum ImageFormat {
     WEBP,
     JPEG,
 }
-

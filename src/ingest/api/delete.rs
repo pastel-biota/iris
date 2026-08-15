@@ -1,8 +1,18 @@
 use std::sync::Arc;
 
-use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 
-use crate::{Context, api::error::ApiError, auth::{extractor::ValidUserSession, whitelist}, infra::api::types::ClientError, model::Identifier};
+use crate::{
+    Context,
+    api::error::ApiError,
+    auth::{extractor::ValidUserSession, whitelist},
+    infra::api::types::ClientError,
+    model::Identifier,
+};
 
 /// A new field
 ///

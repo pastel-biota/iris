@@ -1,6 +1,6 @@
-use std::pin::Pin;
 #[allow(clippy::disallowed_types)]
-use std::{path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
 use futures_util::{Stream, TryStreamExt};
 use tokio::fs::File;
@@ -21,7 +21,7 @@ impl ScopedPath {
             panic!("ScopedPath::from_allowed_dir was invoked for non-directory path");
         }
 
-        tracing::debug!(dir=dir.display().to_string(), "Initialized ScopedPath");
+        tracing::debug!(dir = dir.display().to_string(), "Initialized ScopedPath");
 
         Self {
             allowed_path: dir.to_path_buf(),
@@ -76,11 +76,20 @@ impl ScopedPath {
     fn with_new_path(&self, new_path: impl AsRef<Path>) -> Self {
         let new_path = new_path.as_ref();
 
-        if new_path.components().any(|component| component.as_os_str() == "..") {
-            panic!("Path contains reference to the parent dir: {}", new_path.display());
+        if new_path
+            .components()
+            .any(|component| component.as_os_str() == "..")
+        {
+            panic!(
+                "Path contains reference to the parent dir: {}",
+                new_path.display()
+            );
         }
 
-        if std::path::absolute(new_path).map(|path| !path.starts_with(&self.allowed_path)).unwrap_or(true) {
+        if std::path::absolute(new_path)
+            .map(|path| !path.starts_with(&self.allowed_path))
+            .unwrap_or(true)
+        {
             panic!("Path resolves to invalid location: {}", new_path.display());
         }
 
@@ -88,7 +97,11 @@ impl ScopedPath {
             let canonicalized = new_path.canonicalize().unwrap();
 
             if !canonicalized.starts_with(&self.allowed_path) {
-                panic!("Path resolves to invalid location:\n    Specified: {}\n    Resolved: {}", new_path.display(), canonicalized.display());
+                panic!(
+                    "Path resolves to invalid location:\n    Specified: {}\n    Resolved: {}",
+                    new_path.display(),
+                    canonicalized.display()
+                );
             }
         }
 
@@ -116,11 +129,10 @@ pub struct LengthedStream {
 impl LengthedStream {
     pub async fn from_file(file: tokio::fs::File) -> std::io::Result<Self> {
         let metadata = file.metadata().await?;
-    
+
         Ok(Self {
             stream: Box::pin(
-                ReaderStream::with_capacity(file, 64 * 1024)
-                    .map_err(|error| error.to_string())
+                ReaderStream::with_capacity(file, 64 * 1024).map_err(|error| error.to_string()),
             ),
             len: Some(metadata.len()),
         })

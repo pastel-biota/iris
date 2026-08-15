@@ -1,5 +1,5 @@
-use http::Method;
 use crate::{federation::protocol::Endpoint, model::EntityName};
+use http::Method;
 
 pub struct LoginEndpoint;
 

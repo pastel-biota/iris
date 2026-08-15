@@ -5,7 +5,14 @@ use axum_limit::Quota;
 use http::StatusCode;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{api::error::ApiError, auth::{service::LoginError, endpoint, extractor::ValidIrisSession, password::Password}, infra::api::{rate_limit::{self, ClientIp}, types::{ClientError, SuccessfulResponse, client_error, success}}};
+use crate::{
+    api::error::ApiError,
+    auth::{endpoint, extractor::ValidIrisSession, password::Password, service::LoginError},
+    infra::api::{
+        rate_limit::{self, ClientIp},
+        types::{ClientError, SuccessfulResponse, client_error, success},
+    },
+};
 
 pub fn auth_route(_ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>> {
     OpenApiRouter::new()
@@ -35,21 +42,37 @@ async fn login(
     // Tighter than the global limit: login is a brute-force target.
     rate_limit::enforce(&ctx, ip, Quota::new(5, 60_000)).await?;
 
-    let login = super::service::login_to_entity(&ctx.auth, &login.username, &Password::from_string(login.password)).await;
+    let login = super::service::login_to_entity(
+        &ctx.auth,
+        &login.username,
+        &Password::from_string(login.password),
+    )
+    .await;
 
     let session_key = match login {
         Ok(key) => key,
         Err(LoginError::InvalidCredential) => {
-            return Ok((StatusCode::UNAUTHORIZED, Json(client_error("Incorrect username / password"))).into_response());
-        },
+            return Ok((
+                StatusCode::UNAUTHORIZED,
+                Json(client_error("Incorrect username / password")),
+            )
+                .into_response());
+        }
         Err(LoginError::GenericError(e)) => {
-            return Ok((StatusCode::INTERNAL_SERVER_ERROR, Json(client_error(e.to_string()))).into_response());
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(client_error(e.to_string())),
+            )
+                .into_response());
         }
     };
 
     Ok((
         StatusCode::OK,
-        [(http::header::SET_COOKIE, super::protocol::create_cookie(&session_key, &ctx.base.host))],
+        [(
+            http::header::SET_COOKIE,
+            super::protocol::create_cookie(&session_key, &ctx.base.host),
+        )],
         Json(success(endpoint::LoginResponse { session_key })),
     )
         .into_response())
@@ -67,7 +90,9 @@ async fn login(
 async fn me(ValidIrisSession(session): ValidIrisSession) -> impl IntoResponse {
     (
         StatusCode::OK,
-        Json(success(endpoint::MeResponse { name: session.entity.name().clone() })),
+        Json(success(endpoint::MeResponse {
+            name: session.entity.name().clone(),
+        })),
     )
         .into_response()
 }

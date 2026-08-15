@@ -3,14 +3,21 @@
 // paths cross into `ScopedPath` at the point they are used for I/O.
 #![allow(clippy::disallowed_types)]
 
-use std::{collections::{HashSet, VecDeque}, path::{Path, PathBuf}};
+use std::{
+    collections::{HashSet, VecDeque},
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use clap::Parser;
 use serde::Deserialize;
 
 use crate::{
-    auth::config::AuthConfig, entry::{migrate::MigrationOptions, user::UserOptions}, ingest::{config::IngestConfig, technicals::image::property::PropertyConfig}, processor::config::ImageProcessConfig, repository::config::FederationConfig
+    auth::config::AuthConfig,
+    entry::{migrate::MigrationOptions, user::UserOptions},
+    ingest::{config::IngestConfig, technicals::image::property::PropertyConfig},
+    processor::config::ImageProcessConfig,
+    repository::config::FederationConfig,
 };
 
 #[derive(clap::Parser)]
@@ -56,7 +63,7 @@ impl CommonOptions {
             (Some(mut left), Some(right)) => {
                 left.extend(right);
                 Some(left)
-            },
+            }
             (Some(one), None) | (None, Some(one)) => Some(one),
             (None, None) => None,
         };
@@ -99,22 +106,15 @@ pub enum Command {
     Server,
     User(UserOptions),
     Migration(MigrationOptions),
-} 
+}
 
 pub fn parse_config() -> anyhow::Result<Entry> {
     let args = Args::parse();
     let (command, config) = match args.command {
-        SubCommands::Server { config } => {
-            (Command::Server, config)
-        },
-        SubCommands::User { config, user } => {
-            (Command::User(user), config)
-        },
-        SubCommands::Migration { config, migration } => {
-            (Command::Migration(migration), config)
-        }
+        SubCommands::Server { config } => (Command::Server, config),
+        SubCommands::User { config, user } => (Command::User(user), config),
+        SubCommands::Migration { config, migration } => (Command::Migration(migration), config),
     };
-
 
     let mut importing: VecDeque<PathBuf> = VecDeque::new();
     let mut known_files: HashSet<PathBuf> = HashSet::new();
@@ -132,22 +132,25 @@ pub fn parse_config() -> anyhow::Result<Entry> {
         tracing::trace!("Popping the {}", file_name.display());
         // tracing::trace!("Left: {:?}", importing);
 
-
-        let mut builder = config::Config::builder()
-            .add_source(config::File::with_name(file_name.as_os_str().to_str().unwrap()));
+        let mut builder = config::Config::builder().add_source(config::File::with_name(
+            file_name.as_os_str().to_str().unwrap(),
+        ));
 
         if let Some(loaded_config) = loaded_config.take() {
-            builder = builder
-                .add_source(loaded_config);
+            builder = builder.add_source(loaded_config);
         }
 
-        let config = builder.build()
+        let config = builder
+            .build()
             .with_context(|| format!("Error during parsing {}", file_name.display()))?;
 
         if let Ok(import) = config.get_array("import") {
             for import_value in import {
                 let config::ValueKind::String(path) = &import_value.kind else {
-                    anyhow::bail!("While reading {} - the import should be specified with the string", file_name.display());
+                    anyhow::bail!(
+                        "While reading {} - the import should be specified with the string",
+                        file_name.display()
+                    );
                 };
 
                 let path = file_name.parent().unwrap_or(Path::new("")).join(path);

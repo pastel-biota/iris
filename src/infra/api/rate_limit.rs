@@ -50,13 +50,18 @@ where
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        client_ip(&parts.headers, parts.extensions.get()).map(ClientIp).ok_or_else(|| {
-            ApiError::InternalError("Could not determine the client's IP address".to_string())
-        })
+        client_ip(&parts.headers, parts.extensions.get())
+            .map(ClientIp)
+            .ok_or_else(|| {
+                ApiError::InternalError("Could not determine the client's IP address".to_string())
+            })
     }
 }
 
-fn client_ip(headers: &HeaderMap, connect_info: Option<&ConnectInfo<SocketAddr>>) -> Option<IpAddr> {
+fn client_ip(
+    headers: &HeaderMap,
+    connect_info: Option<&ConnectInfo<SocketAddr>>,
+) -> Option<IpAddr> {
     headers
         .get("cf-connecting-ip")
         .and_then(|v| v.to_str().ok())
@@ -74,12 +79,18 @@ pub async fn enforce(ctx: &crate::Context, ip: ClientIp, quota: Quota) -> Result
         return Ok(());
     }
 
-    let snapshot = ctx.rate_limit.check(ip, quota).await.map_err(ApiError::internal)?;
+    let snapshot = ctx
+        .rate_limit
+        .check(ip, quota)
+        .await
+        .map_err(ApiError::internal)?;
 
     if snapshot.allowed {
         Ok(())
     } else {
-        Err(ApiError::TooManyRequests("Too many requests, please try again later".to_string()))
+        Err(ApiError::TooManyRequests(
+            "Too many requests, please try again later".to_string(),
+        ))
     }
 }
 

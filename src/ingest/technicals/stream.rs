@@ -1,11 +1,18 @@
 // Safety: The file names are entirely controlled at here
 #![allow(clippy::disallowed_types)]
 
-use std::{io::{ErrorKind, Write}, os::unix::fs::{MetadataExt, PermissionsExt}, path::PathBuf};
+use std::{
+    io::{ErrorKind, Write},
+    os::unix::fs::{MetadataExt, PermissionsExt},
+    path::PathBuf,
+};
 
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
-use tokio::{pin, sync::{Semaphore, SemaphorePermit}};
+use tokio::{
+    pin,
+    sync::{Semaphore, SemaphorePermit},
+};
 
 // Maximum 1G
 pub const MAX_OVERALL_SIZE_BYTES: usize = 1024 * 1024 * 1024;
@@ -38,16 +45,24 @@ impl SizedStream {
     pub async fn receive_stream<'s, S, E>(
         &'s self,
         requested_size: usize,
-        stream: S
+        stream: S,
     ) -> Result<StreamPayloadHandle<'s>, std::io::Error>
-    where E: std::error::Error + Send + Sync + 'static,
-          S: Stream<Item = Result<Bytes, E>>,
+    where
+        E: std::error::Error + Send + Sync + 'static,
+        S: Stream<Item = Result<Bytes, E>>,
     {
         if requested_size >= MAX_PER_STREAM_SIZE_BYTES {
-            return Err(std::io::Error::new(ErrorKind::FileTooLarge, format!("The payload must be within {MAX_PER_STREAM_SIZE_BYTES} bytes")));
+            return Err(std::io::Error::new(
+                ErrorKind::FileTooLarge,
+                format!("The payload must be within {MAX_PER_STREAM_SIZE_BYTES} bytes"),
+            ));
         }
 
-        let semaphore = self.io_sem.acquire_many(requested_size.try_into().unwrap()).await.unwrap();
+        let semaphore = self
+            .io_sem
+            .acquire_many(requested_size.try_into().unwrap())
+            .await
+            .unwrap();
         tracing::debug!(
             "Acquired I/O Sem: {}, now {} left",
             requested_size,
@@ -67,7 +82,10 @@ impl SizedStream {
             let new_size = size + chunk.len();
 
             if new_size > requested_size {
-                return Err(std::io::Error::new(ErrorKind::FileTooLarge, "The payload is exceeding the early reported length of the content"));
+                return Err(std::io::Error::new(
+                    ErrorKind::FileTooLarge,
+                    "The payload is exceeding the early reported length of the content",
+                ));
             }
 
             file.write_all(&chunk)?;
@@ -77,7 +95,11 @@ impl SizedStream {
         file.flush()?;
 
         if size != requested_size {
-            tracing::warn!("The received stream's size does not match to the requested size: req={} v.s. actual={}", requested_size, size)
+            tracing::warn!(
+                "The received stream's size does not match to the requested size: req={} v.s. actual={}",
+                requested_size,
+                size
+            )
         }
 
         Ok(payload)
@@ -91,7 +113,10 @@ pub struct StreamPayloadHandle<'s> {
 }
 
 impl<'s> StreamPayloadHandle<'s> {
-    pub fn new(semaphore: &'s Semaphore, io_handle: SemaphorePermit<'s>) -> Result<Self, std::io::Error> {
+    pub fn new(
+        semaphore: &'s Semaphore,
+        io_handle: SemaphorePermit<'s>,
+    ) -> Result<Self, std::io::Error> {
         let random = rand::random::<u32>();
         let path = Self::ensure_tmp_dir()?.join(format!("payload-{random}"));
 
@@ -138,7 +163,7 @@ impl<'s> StreamPayloadHandle<'s> {
 
 pub struct OpenedPayload<'s> {
     pub bytes: Bytes,
-    _permit: SemaphorePermit<'s>
+    _permit: SemaphorePermit<'s>,
 }
 
 impl Drop for StreamPayloadHandle<'_> {
@@ -146,4 +171,3 @@ impl Drop for StreamPayloadHandle<'_> {
         std::fs::remove_file(&self.ephemeral_path).ok();
     }
 }
-

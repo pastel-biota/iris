@@ -5,7 +5,10 @@ use std::{
 
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 
-use crate::{Context, processor::{JobApplication, runner::run_image_processing}};
+use crate::{
+    Context,
+    processor::{JobApplication, runner::run_image_processing},
+};
 
 #[derive(Default)]
 pub struct ProcessorQueue {
@@ -59,13 +62,16 @@ impl ProcessorRunner {
 
     async fn drain_queue(self: Arc<Self>) {
         while let Some(job) = self.ctx.processor.queue.pop_job() {
-            let permit = Arc::clone(&self.runner_semaphore).acquire_owned().await.unwrap();
+            let permit = Arc::clone(&self.runner_semaphore)
+                .acquire_owned()
+                .await
+                .unwrap();
             let ctx = self.ctx.clone();
 
             tokio::spawn(async move {
                 let _permit: OwnedSemaphorePermit = permit;
                 match job {
-                    JobApplication::Ping(_) => {},
+                    JobApplication::Ping(_) => {}
                     JobApplication::ImageProcess(job) => {
                         if let Err(e) = run_image_processing(ctx, job).await {
                             tracing::error!("Image processing failed: {e}");

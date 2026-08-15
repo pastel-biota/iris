@@ -10,9 +10,7 @@ pub async fn access_log(req: Request, next: Next) -> Response {
 
     tracing::debug!("[{}] {} {}", access_id, req.method(), req.uri());
 
-    let response = next.run(req)
-        .instrument(span)
-        .await;
+    let response = next.run(req).instrument(span).await;
 
     tracing::debug!("[{}] {}", access_id, response.status());
 

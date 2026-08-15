@@ -8,13 +8,15 @@ use tokio::{
 
 use crate::{
     model::{ImageMeta, LocalIdentifier, PhotoMeta},
-    repository::{io::{LengthedStream, ScopedPath}, local::io::scheme::VersionedPhotoMetaScheme},
+    repository::{
+        io::{LengthedStream, ScopedPath},
+        local::io::scheme::VersionedPhotoMetaScheme,
+    },
 };
 
 pub struct PhotoStorageDirectory {
     base_dir: ScopedPath,
 }
-
 
 impl PhotoStorageDirectory {
     pub fn new(base_dir: &ScopedPath) -> Self {

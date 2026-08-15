@@ -1,4 +1,3 @@
-
 use anyhow::{Context, bail};
 use futures_util::TryStreamExt;
 use http::{Method, header};
@@ -31,14 +30,13 @@ macro_rules! path {
 fn contrust_request<E: Endpoint>(
     session_id: Option<&str>,
     origin: &str,
-    param: E::Request
+    param: E::Request,
 ) -> Result<reqwest_middleware::RequestBuilder, RequestError> {
     let (method, path) = E::PATH;
 
     let req = if method == Method::GET {
         let path_with_param = to_param(path, param)?;
-        super::request::create_client()
-            .request(method, format!("{}{}", origin, path_with_param))
+        super::request::create_client().request(method, format!("{}{}", origin, path_with_param))
     } else {
         super::request::create_client()
             .request(method, format!("{}{}", origin, path))
@@ -58,7 +56,7 @@ fn contrust_request<E: Endpoint>(
 pub async fn request<E: Endpoint>(
     session_id: Option<&str>,
     origin: &str,
-    param: E::Request
+    param: E::Request,
 ) -> Result<E::Response, RequestError> {
     let req = contrust_request::<E>(session_id, origin, param)?
         .send()
@@ -67,28 +65,36 @@ pub async fn request<E: Endpoint>(
 
     let code = req.status();
 
-    let response = req.text().await.context("Could not read the response body")?;
+    let response = req
+        .text()
+        .await
+        .context("Could not read the response body")?;
 
-    let response = serde_json::from_str::<IrisResponse<E::Response>>(&response)
-        .with_context(|| {
-            tracing::debug!("Failed to parse [{}{}] ({}): {:?}", origin, E::PATH.1, code, response);
-            format!("The request to '{}' was successful, but its shape is not something we wanted", E::PATH.1)
+    let response =
+        serde_json::from_str::<IrisResponse<E::Response>>(&response).with_context(|| {
+            tracing::debug!(
+                "Failed to parse [{}{}] ({}): {:?}",
+                origin,
+                E::PATH.1,
+                code,
+                response
+            );
+            format!(
+                "The request to '{}' was successful, but its shape is not something we wanted",
+                E::PATH.1
+            )
         })?;
 
     match response {
-        IrisResponse::Okay { response } => {
-            Ok(response)
-        },
-        IrisResponse::Error { reason } => {
-            Err(RequestError::Applictaion(code, reason))
-        }
+        IrisResponse::Okay { response } => Ok(response),
+        IrisResponse::Error { reason } => Err(RequestError::Applictaion(code, reason)),
     }
 }
 
 pub async fn request_stream<E: Endpoint>(
     session_id: Option<String>,
     origin: String,
-    param: E::Request
+    param: E::Request,
 ) -> Result<LengthedStream, RequestError> {
     let req = contrust_request::<E>(session_id.as_deref(), &origin, param)?
         .send()
@@ -103,15 +109,19 @@ pub async fn request_stream<E: Endpoint>(
         return if let Ok(IrisResponse::Error { reason }) = response {
             Err(RequestError::Applictaion(code, reason))
         } else {
-            Err(RequestError::Anyhow(anyhow::anyhow!("HTTP status code was {code} and it is not application error")))
+            Err(RequestError::Anyhow(anyhow::anyhow!(
+                "HTTP status code was {code} and it is not application error"
+            )))
         };
     }
 
     Ok(LengthedStream {
-        len: req.headers().get(http::header::CONTENT_LENGTH)
+        len: req
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
             .and_then(|text| text.to_str().ok())
             .and_then(|text| text.parse().ok()),
-        stream: Box::pin(req.bytes_stream().map_err(|error| error.to_string()))
+        stream: Box::pin(req.bytes_stream().map_err(|error| error.to_string())),
     })
 }
 
@@ -135,8 +145,10 @@ fn to_param(url: &str, query: impl serde::Serialize) -> anyhow::Result<String> {
             Value::Bool(value) => value.to_string(),
             Value::Number(value) => value.to_string(),
             Value::Array(_) => {
-                unimplemented!("Array value was tried to use for the query parameter, but I have no good idea how to serialize this");
-            },
+                unimplemented!(
+                    "Array value was tried to use for the query parameter, but I have no good idea how to serialize this"
+                );
+            }
             Value::Object(_) => {
                 bail!("The query value needs to be flat");
             }
@@ -153,7 +165,6 @@ fn to_param(url: &str, query: impl serde::Serialize) -> anyhow::Result<String> {
         } else {
             query_strs.push(format!("{}={}", key, value));
         }
-
     }
 
     Ok(format!("{}?{}", url, query_strs.join("&")))
@@ -185,6 +196,4 @@ impl Endpoint for Health {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub struct HealthResponse {
-}
-
+pub struct HealthResponse {}

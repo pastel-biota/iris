@@ -1,11 +1,19 @@
 use std::sync::Arc;
 
 use axum::{
-    body::Body, extract::{Path, State}, http::StatusCode, response::IntoResponse
+    body::Body,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
 };
 
 use crate::{
-    Context, api::{error::ApiError, header::immutable_asset}, auth::{extractor::IrisSession, whitelist}, federation::protocol::Endpoint, infra::api::types::{BinaryBody, ClientError}, model::Identifier
+    Context,
+    api::{error::ApiError, header::immutable_asset},
+    auth::{extractor::IrisSession, whitelist},
+    federation::protocol::Endpoint,
+    infra::api::types::{BinaryBody, ClientError},
+    model::Identifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

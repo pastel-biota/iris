@@ -1,7 +1,10 @@
 use anyhow::Context;
 use diesel::{BoolExpressionMethods as _, ExpressionMethods as _, QueryDsl as _, RunQueryDsl, dsl};
 
-use crate::{infra::{schema::*, sqlite::SqliteConnection}, model::{EntityName, Identifier}};
+use crate::{
+    infra::{schema::*, sqlite::SqliteConnection},
+    model::{EntityName, Identifier},
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum WhitelistRepositoryError {
@@ -9,7 +12,7 @@ pub enum WhitelistRepositoryError {
     NotReigstered,
 
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
+    Other(#[from] anyhow::Error),
 }
 
 pub struct WhitelistRepository {
@@ -21,7 +24,11 @@ impl WhitelistRepository {
         Self { db }
     }
 
-    pub async fn photo_allowed(&self, name: &EntityName, photo_id: &Identifier) -> Result<bool, WhitelistRepositoryError> {
+    pub async fn photo_allowed(
+        &self,
+        name: &EntityName,
+        photo_id: &Identifier,
+    ) -> Result<bool, WhitelistRepositoryError> {
         let pool = self.db.pool();
         let name = name.clone();
         let photo_id = photo_id.clone();
@@ -31,12 +38,13 @@ impl WhitelistRepository {
 
             diesel::select(dsl::exists(
                 whitelist::table.filter(
-                    whitelist::entity.eq(name.to_string())
-                        .and(whitelist::photo_id.eq(photo_id.to_string()))
-                )
+                    whitelist::entity
+                        .eq(name.to_string())
+                        .and(whitelist::photo_id.eq(photo_id.to_string())),
+                ),
             ))
-                .get_result(&mut conn)
-                .context("Failed on the DB query")
+            .get_result(&mut conn)
+            .context("Failed on the DB query")
         })
         .await
         .context("DB task panicked")??;
@@ -44,4 +52,3 @@ impl WhitelistRepository {
         Ok(exists)
     }
 }
-

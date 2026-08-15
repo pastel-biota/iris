@@ -11,4 +11,3 @@ pub fn collect_n<const N: usize, I>(mut iter: impl Iterator<Item = I>) -> Option
 
     Some(array.map(|value| value.unwrap()))
 }
-

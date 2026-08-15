@@ -27,7 +27,9 @@ pub struct HashedPassword(String);
 
 impl std::fmt::Debug for HashedPassword {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("HashedPassword").field(&"***".to_string()).finish()
+        f.debug_tuple("HashedPassword")
+            .field(&"***".to_string())
+            .finish()
     }
 }
 
@@ -44,7 +46,9 @@ impl FromStr for Password {
         }
 
         if password.len() > 72 {
-            anyhow::bail!("Your password contains more than 72 bytes, which can't be used for the password!");
+            anyhow::bail!(
+                "Your password contains more than 72 bytes, which can't be used for the password!"
+            );
         }
 
         Ok(Self(password.to_string()))
@@ -53,7 +57,10 @@ impl FromStr for Password {
 
 pub fn accept_password_from_cli(username: &str) -> anyhow::Result<HashedPassword> {
     let password = loop {
-        let password = rpassword::prompt_password(format!("Please type a password for the new user '{}': ", username))?;
+        let password = rpassword::prompt_password(format!(
+            "Please type a password for the new user '{}': ",
+            username
+        ))?;
         let password = match password.parse::<Password>() {
             Ok(password) => password,
             Err(err) => {
@@ -67,7 +74,10 @@ pub fn accept_password_from_cli(username: &str) -> anyhow::Result<HashedPassword
             continue;
         }
 
-        let confirmatory = rpassword::prompt_password(format!("Type again the same password for '{}' to confirm: ", username))?;
+        let confirmatory = rpassword::prompt_password(format!(
+            "Type again the same password for '{}' to confirm: ",
+            username
+        ))?;
 
         if password.0 != confirmatory {
             println!("[!] The password did not match!");
@@ -94,6 +104,8 @@ pub fn hash_password(password: &Password) -> anyhow::Result<HashedPassword> {
 }
 
 pub fn verify_password(password: &Password, hash: Option<&HashedPassword>) -> anyhow::Result<bool> {
-    Ok(bcrypt::verify(&password.0, &hash.as_ref().unwrap_or(&&*DUMMY_HASH).0)?)
+    Ok(bcrypt::verify(
+        &password.0,
+        &hash.as_ref().unwrap_or(&&*DUMMY_HASH).0,
+    )?)
 }
-

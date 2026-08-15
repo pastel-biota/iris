@@ -1,7 +1,13 @@
 use std::io::Cursor;
 
-use image::{DynamicImage, GenericImageView, ImageResult, imageops::FilterType, ImageFormat as SavingImageFormat};
-use crate::{model::ImageMeta, processor::config::{ImageFormat, ResizeTargets}};
+use crate::{
+    model::ImageMeta,
+    processor::config::{ImageFormat, ResizeTargets},
+};
+use image::{
+    DynamicImage, GenericImageView, ImageFormat as SavingImageFormat, ImageResult,
+    imageops::FilterType,
+};
 
 pub const RESIZE_TARGETS: [ResizeTargets; 4] = [
     // icon

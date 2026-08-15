@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-};
+use axum::{extract::FromRequestParts, http::request::Parts};
 
-use crate::{api::error::ApiError, auth::{config::Entity, protocol::{extract_from_cookie, extract_from_header}, session::{Session, ValidSession}}};
+use crate::{
+    api::error::ApiError,
+    auth::{
+        config::Entity,
+        protocol::{extract_from_cookie, extract_from_header},
+        session::{Session, ValidSession},
+    },
+};
 
 pub struct IrisSession(pub Session);
 pub struct ValidIrisSession(pub ValidSession);
@@ -27,10 +31,7 @@ where
             .get("authorization")
             .and_then(|v| v.to_str().ok());
 
-        let cookies = parts
-            .headers
-            .get("cookie")
-            .and_then(|v| v.to_str().ok());
+        let cookies = parts.headers.get("cookie").and_then(|v| v.to_str().ok());
 
         let session_id = {
             if let Some(authorization) = authorization {
@@ -48,14 +49,21 @@ where
                 return if ctx.auth.config.unrestricted_instance == Some(true) {
                     Ok(IrisSession(Session::Bypassed))
                 } else {
-                    Err(ApiError::Unauthorized("The provided session is not valid or expired".to_string()))
+                    Err(ApiError::Unauthorized(
+                        "The provided session is not valid or expired".to_string(),
+                    ))
                 };
             }
         };
 
-        let Some(session) = super::service::verify_session(&ctx.auth, session_id).await.unwrap() else {
-            return Err(ApiError::Unauthorized("The provided session is not valid or expired".to_string()))
-       };
+        let Some(session) = super::service::verify_session(&ctx.auth, session_id)
+            .await
+            .unwrap()
+        else {
+            return Err(ApiError::Unauthorized(
+                "The provided session is not valid or expired".to_string(),
+            ));
+        };
 
         Ok(IrisSession(Session::Valid(session)))
     }
@@ -72,7 +80,9 @@ where
 
         match session.0 {
             Session::Valid(valid_session) => Ok(Self(valid_session)),
-            Session::Bypassed => Err(ApiError::Unauthorized("This endpoint requires a valid session".to_string()))
+            Session::Bypassed => Err(ApiError::Unauthorized(
+                "This endpoint requires a valid session".to_string(),
+            )),
         }
     }
 }
@@ -88,7 +98,9 @@ where
 
         match session.entity {
             Entity::User(_) => Ok(Self(session)),
-            Entity::Federation(_) => Err(ApiError::Forbidden("This endpoint is not available to federation entities".to_string()))
+            Entity::Federation(_) => Err(ApiError::Forbidden(
+                "This endpoint is not available to federation entities".to_string(),
+            )),
         }
     }
 }

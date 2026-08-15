@@ -1,4 +1,7 @@
-use crate::{auth::{config::Entity, context::AuthContext, password::Password, session::ValidSession}, model::EntityName};
+use crate::{
+    auth::{config::Entity, context::AuthContext, password::Password, session::ValidSession},
+    model::EntityName,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum LoginError {
@@ -9,7 +12,11 @@ pub enum LoginError {
     GenericError(#[from] anyhow::Error),
 }
 
-pub async fn login_to_entity(ctx: &AuthContext, username: &EntityName, password: &Password) -> Result<String, LoginError> {
+pub async fn login_to_entity(
+    ctx: &AuthContext,
+    username: &EntityName,
+    password: &Password,
+) -> Result<String, LoginError> {
     let entity = ctx.config.entities.get(username);
     let hashed = entity.map(|entity| match entity {
         Entity::User(user) => &user.password,
@@ -20,16 +27,19 @@ pub async fn login_to_entity(ctx: &AuthContext, username: &EntityName, password:
         return Err(LoginError::InvalidCredential);
     }
 
-    let session_key = ctx.state.sessions.lock()
+    let session_key = ctx
+        .state
+        .sessions
+        .lock()
         .unwrap()
         .new_session(entity.unwrap().clone())?;
 
     Ok(session_key)
 }
 
-pub async fn verify_session(ctx: &AuthContext, session_key: &str) -> anyhow::Result<Option<ValidSession>> {
-    ctx.state.sessions
-        .lock()
-        .unwrap()
-        .get_session(session_key)
+pub async fn verify_session(
+    ctx: &AuthContext,
+    session_key: &str,
+) -> anyhow::Result<Option<ValidSession>> {
+    ctx.state.sessions.lock().unwrap().get_session(session_key)
 }

@@ -171,11 +171,14 @@ pub async fn get_photos_list(
         None
     };
 
-    Ok((StatusCode::OK, Json(success(GetPhotosListResponse {
-        total_count,
-        next_cursor,
-        photos: photos.into_iter().map(Into::into).collect(),
-    }))))
+    Ok((
+        StatusCode::OK,
+        Json(success(GetPhotosListResponse {
+            total_count,
+            next_cursor,
+            photos: photos.into_iter().map(Into::into).collect(),
+        })),
+    ))
 }
 
 fn entity_of(session: &Session) -> Option<Entity> {

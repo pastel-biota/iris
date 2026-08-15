@@ -8,7 +8,12 @@ use axum::{
 };
 
 use crate::{
-    Context, api::error::ApiError, auth::{extractor::ValidUserSession, whitelist}, event::Event, infra::api::types::{SuccessfulResponse, success}, model::Identifier
+    Context,
+    api::error::ApiError,
+    auth::{extractor::ValidUserSession, whitelist},
+    event::Event,
+    infra::api::types::{SuccessfulResponse, success},
+    model::Identifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -57,7 +62,9 @@ pub async fn reprocess(
     }
 
     ctx.event_tx
-        .send(Event::PhotoReprocessRequested { photo_id: photo_id.clone() })
+        .send(Event::PhotoReprocessRequested {
+            photo_id: photo_id.clone(),
+        })
         .await
         .map_err(ApiError::internal_during("queueing the reprocess event"))?;
 

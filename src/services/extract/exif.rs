@@ -131,9 +131,7 @@ fn time_value(
     let timestamp = exif
         .get_ascii(date_time)
         .context("DateTime is not available")?;
-    let timezone = exif
-        .get_ascii(offset_time)
-        .unwrap_or(FALLBACK_OFFSET);
+    let timezone = exif.get_ascii(offset_time).unwrap_or(FALLBACK_OFFSET);
 
     chrono::DateTime::parse_from_str(&format!("{timestamp} {timezone}"), "%Y:%m:%d %H:%M:%S %:z")
         .context("DateTime was malformed")
@@ -190,7 +188,9 @@ fn machinery(exif: &ExifData, vendor: Tag, model: Tag) -> anyhow::Result<String>
         .trim()
         .to_string();
 
-    if let Some(vendor) = vendor && !model.contains(&vendor) {
+    if let Some(vendor) = vendor
+        && !model.contains(&vendor)
+    {
         Ok(format!("{vendor} {model}"))
     } else {
         Ok(model)

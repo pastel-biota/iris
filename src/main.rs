@@ -5,23 +5,30 @@ use std::{process::ExitCode, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::{
-    auth::context::AuthContext, config::{BaseConfig, Entry, parse_config}, entry::server::RunServerResourcees, event::{EventSender, create_event_bus}, infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection}, ingest::context::{IngestContext, ServiceContext}, processor::ProcessorContext, repository::{io::ScopedPath, registry::PhotoStorageRegistry},
+    auth::context::AuthContext,
+    config::{BaseConfig, Entry, parse_config},
+    entry::server::RunServerResourcees,
+    event::{EventSender, create_event_bus},
+    infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection},
+    ingest::context::{IngestContext, ServiceContext},
+    processor::ProcessorContext,
+    repository::{io::ScopedPath, registry::PhotoStorageRegistry},
 };
 
+pub mod api;
+pub mod auth;
 pub mod config;
 pub mod entry;
 pub mod event;
+pub mod federation;
 pub mod infra;
 pub mod ingest;
+pub mod macros;
 pub mod model;
 pub mod processor;
 pub mod repository;
 pub mod services;
 pub mod util;
-pub mod auth;
-pub mod federation;
-pub mod api;
-pub mod macros;
 
 pub struct Context {
     pub base: BaseConfig,
@@ -67,7 +74,11 @@ async fn run() -> Result<(), anyhow::Error> {
     let sqlite = SqliteConnection::connect(&ingest_scope).await?;
 
     let ctx = Arc::new(Context {
-        registry: RwLock::new(PhotoStorageRegistry::new(config.federation, sqlite.clone(), &ingest_scope)),
+        registry: RwLock::new(PhotoStorageRegistry::new(
+            config.federation,
+            sqlite.clone(),
+            &ingest_scope,
+        )),
         service: ServiceContext::try_from_config(&config.processors)?,
         auth: AuthContext::new(config.auth, sqlite.clone()),
         ingest: IngestContext::new(config.ingest),
@@ -81,14 +92,14 @@ async fn run() -> Result<(), anyhow::Error> {
         config::Command::Server => {
             let resources = RunServerResourcees { ctx, event_rx };
             entry::server::run_server(resources).await?;
-        },
+        }
         config::Command::User(user_config) => {
             entry::user::create_user(ctx, user_config).await?;
-        },
+        }
         config::Command::Migration(migration_config) => {
             entry::migrate::migrate(ctx, ingest_scope, migration_config).await?;
-        },
-    } 
+        }
+    }
 
     Ok(())
 }

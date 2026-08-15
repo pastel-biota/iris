@@ -8,16 +8,19 @@ pub fn extract_from_header(authorization: &str) -> Result<Option<&str>, ApiError
     };
 
     if schema.to_lowercase() != "bearer" {
-        return Err(ApiError::BadRequest("The authorization bearer is not bearer".to_string()));
+        return Err(ApiError::BadRequest(
+            "The authorization bearer is not bearer".to_string(),
+        ));
     };
 
     Ok(Some(value.trim()))
 }
 
-
 pub fn create_cookie(session_key: &str, domain: &str) -> String {
     let max_age = SESSION_DURATION.num_seconds();
-    format!("{SESSION_COOKIE}={session_key}; Domain={domain}; Max-Age={max_age}; HttpOnly; SameSite=Lax")
+    format!(
+        "{SESSION_COOKIE}={session_key}; Domain={domain}; Max-Age={max_age}; HttpOnly; SameSite=Lax"
+    )
 }
 
 pub fn extract_from_cookie(cookie: &str) -> Option<&str> {

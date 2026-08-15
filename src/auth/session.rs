@@ -16,7 +16,6 @@ pub enum Session {
     Bypassed,
 }
 
-
 impl Session {
     pub fn bypass_or_verify(&self, verify_fn: impl FnOnce(&ValidSession) -> bool) -> bool {
         match self {
@@ -25,7 +24,10 @@ impl Session {
         }
     }
 
-    pub fn bypass_or_ensure<E>(&self, ensure_fn: impl FnOnce(&ValidSession) -> Result<(), E>) -> Result<(), E> {
+    pub fn bypass_or_ensure<E>(
+        &self,
+        ensure_fn: impl FnOnce(&ValidSession) -> Result<(), E>,
+    ) -> Result<(), E> {
         match self {
             Session::Valid(valid_session) => ensure_fn(valid_session),
             Session::Bypassed => Ok(()),
@@ -63,9 +65,10 @@ impl SessionsStore {
     pub fn new_session(&mut self, entity: Entity) -> anyhow::Result<String> {
         let session_id: [u8; 64] = rand::make_rng::<rand::rngs::StdRng>().random();
         let session_key = BASE64_URL_SAFE.encode(session_id);
-    
-        self.0.insert(session_key.clone(), ValidSession::issue_new(entity));
-    
+
+        self.0
+            .insert(session_key.clone(), ValidSession::issue_new(entity));
+
         Ok(session_key)
     }
 

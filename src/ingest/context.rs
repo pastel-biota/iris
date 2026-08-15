@@ -1,5 +1,7 @@
 use crate::ingest::config::IngestConfig;
-use crate::ingest::technicals::image::property::{PropertyConfig, PropertyContext, create_property_processor_context};
+use crate::ingest::technicals::image::property::{
+    PropertyConfig, PropertyContext, create_property_processor_context,
+};
 use crate::ingest::technicals::stream::SizedStream;
 
 pub struct IngestContext {

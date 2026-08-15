@@ -3,9 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
-    Context, api::error::ApiError, auth::extractor::ValidUserSession, infra::api::types::{
-        ClientError, SuccessfulResponse, success,
-    }, ingest::api::scheme::PhotoReferenceSchema
+    Context,
+    api::error::ApiError,
+    auth::extractor::ValidUserSession,
+    infra::api::types::{ClientError, SuccessfulResponse, success},
+    ingest::api::scheme::PhotoReferenceSchema,
 };
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]

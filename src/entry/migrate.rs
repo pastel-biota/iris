@@ -12,7 +12,11 @@ pub enum MigrationOptions {
     V20260723,
 }
 
-pub async fn migrate(_ctx: Arc<Context>, _ingest_scope: ScopedPath, option: MigrationOptions) -> anyhow::Result<()> {
+pub async fn migrate(
+    _ctx: Arc<Context>,
+    _ingest_scope: ScopedPath,
+    option: MigrationOptions,
+) -> anyhow::Result<()> {
     match option {
         MigrationOptions::V20260723 => migrate_v20260723_sqlite().await,
     }
@@ -32,6 +36,3 @@ async fn migrate_v20260723_sqlite() -> anyhow::Result<()> {
 
     anyhow::bail!("This migration is no longer available")
 }
-
-
-

@@ -1,24 +1,23 @@
 use std::sync::Arc;
 
-use axum::{
-    Json,
-    body::Body,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-};
+use axum::{Json, body::Body, extract::State, http::StatusCode, response::IntoResponse};
 use http::request::Parts;
 
 use crate::{
-    Context, api::error::ApiError, auth::extractor::ValidUserSession, event::Event, infra::api::types::{
-        BinaryBody, ClientError, SuccessfulResponse, success,
-    }, ingest::{
+    Context,
+    api::error::ApiError,
+    auth::extractor::ValidUserSession,
+    event::Event,
+    infra::api::types::{BinaryBody, ClientError, SuccessfulResponse, success},
+    ingest::{
         api::scheme::PhotoScheme,
-        technicals::{image::{
+        technicals::image::{
             process::{get_hash, process_image},
             property::process_properties,
-        }},
-    }, model::Identifier, repository::registry::NewPhotoParam,
+        },
+    },
+    model::Identifier,
+    repository::registry::NewPhotoParam,
 };
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -55,21 +54,28 @@ pub async fn new_photo(
     State(ctx): State<Arc<Context>>,
     ValidUserSession(_): ValidUserSession,
     parts: Parts,
-    body: Body
+    body: Body,
 ) -> Result<impl IntoResponse, ApiError> {
-    let Some(length) = parts.headers
+    let Some(length) = parts
+        .headers
         .get(http::header::CONTENT_LENGTH)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<usize>().ok())
     else {
-        return Err(ApiError::BadRequest("Content-Length needs to be provided".to_owned()));
+        return Err(ApiError::BadRequest(
+            "Content-Length needs to be provided".to_owned(),
+        ));
     };
 
-    let received = ctx.ingest.sized_sream
+    let received = ctx
+        .ingest
+        .sized_sream
         .receive_stream(length, body.into_data_stream())
         .await
         .map_err(ApiError::internal_during("reading the body content"))?;
-    let content = received.read().await
+    let content = received
+        .read()
+        .await
         .map_err(ApiError::internal_during("reading the body content"))?;
     let bytes = &content.bytes;
 
@@ -125,7 +131,9 @@ pub async fn new_photo(
     };
 
     ctx.event_tx
-        .send(Event::PhotoRegistered { photo_id: photo_id.clone() })
+        .send(Event::PhotoRegistered {
+            photo_id: photo_id.clone(),
+        })
         .await
         .map_err(ApiError::internal_during("queueing the registration event"))?;
 

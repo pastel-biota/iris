@@ -1,4 +1,8 @@
-use crate::{auth::{context::AuthContext, session::Session}, model::Identifier, repository::whitelist::WhitelistRepositoryError};
+use crate::{
+    auth::{context::AuthContext, session::Session},
+    model::Identifier,
+    repository::whitelist::WhitelistRepositoryError,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum WhitelistError {
@@ -9,16 +13,24 @@ pub enum WhitelistError {
     FileError(#[from] WhitelistRepositoryError),
 }
 
-pub async fn ensure_photo_allowed(ctx: &AuthContext, session: &Session, photo: &Identifier) -> Result<(), WhitelistError> {
+pub async fn ensure_photo_allowed(
+    ctx: &AuthContext,
+    session: &Session,
+    photo: &Identifier,
+) -> Result<(), WhitelistError> {
     let Some(session) = session.not_bypassed() else {
         return Ok(());
     };
 
     if session.entity.has_full_image_access() {
-        return Ok(())
+        return Ok(());
     }
 
-    let allowed = ctx.state.whitelist.photo_allowed(session.entity.name(), photo).await?;
+    let allowed = ctx
+        .state
+        .whitelist
+        .photo_allowed(session.entity.name(), photo)
+        .await?;
 
     if allowed {
         Ok(())
@@ -26,4 +38,3 @@ pub async fn ensure_photo_allowed(ctx: &AuthContext, session: &Session, photo: &
         Err(WhitelistError::NotAllowed)
     }
 }
-

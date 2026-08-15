@@ -38,4 +38,3 @@ impl Middleware for AttachHash {
         next.run(req, ext).await
     }
 }
-

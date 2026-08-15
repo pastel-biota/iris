@@ -6,7 +6,7 @@ use diesel::{
     r2d2::{ConnectionManager, CustomizeConnection, Pool},
     sqlite::Sqlite,
 };
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness as _};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness as _, embed_migrations};
 
 use crate::repository::io::ScopedPath;
 
@@ -45,7 +45,7 @@ impl SqliteConnection {
 
     fn connect_blocking(file_name: &ScopedPath) -> anyhow::Result<Self> {
         let manager = ConnectionManager::<diesel::sqlite::SqliteConnection>::new(
-            file_name.use_path().to_string_lossy()
+            file_name.use_path().to_string_lossy(),
         );
 
         let pool = Pool::builder()
@@ -66,18 +66,21 @@ impl SqliteConnection {
             .into_iter()
             .collect::<HashSet<_>>();
 
-        let registered_migration = diesel::migration::MigrationSource::<Sqlite>::migrations(&MIGRATIONS)
-            .map_err(|error| anyhow::anyhow!("Failed to list registered migrations: {error}"))?
-            .into_iter()
-            .map(|migration| migration.name().version().as_owned())
-            .collect::<HashSet<_>>();
+        let registered_migration =
+            diesel::migration::MigrationSource::<Sqlite>::migrations(&MIGRATIONS)
+                .map_err(|error| anyhow::anyhow!("Failed to list registered migrations: {error}"))?
+                .into_iter()
+                .map(|migration| migration.name().version().as_owned())
+                .collect::<HashSet<_>>();
 
         let difference = applied_migration
             .difference(&registered_migration)
             .collect::<HashSet<_>>();
 
         if !difference.is_empty() {
-            tracing::error!("{}", indoc::formatdoc! {"
+            tracing::error!(
+                "{}",
+                indoc::formatdoc! {"
                 The migration is not up to date!
 
                 The following is being applied already:
@@ -85,7 +88,8 @@ impl SqliteConnection {
 
                 But these are expected:
                   {:?}
-            ", applied_migration, registered_migration});
+            ", applied_migration, registered_migration}
+            );
 
             anyhow::bail!("The migration is not up to date");
         }

@@ -1,13 +1,16 @@
 pub mod middleware;
+pub mod openapi;
 pub mod rate_limit;
 pub mod types;
-pub mod openapi;
 
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{Extension, http::StatusCode, routing::get};
-use http::{Method, header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE}};
+use http::{
+    Method,
+    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
+};
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
@@ -16,10 +19,10 @@ use utoipa_redoc::{Redoc, Servable as _};
 
 use crate::infra::api::openapi::finalize_openapi;
 
-pub async fn run(
-    ctx: Arc<crate::Context>,
-) -> Result<(), anyhow::Error> {
-    let cors_origin = ctx.ingest.config
+pub async fn run(ctx: Arc<crate::Context>) -> Result<(), anyhow::Error> {
+    let cors_origin = ctx
+        .ingest
+        .config
         .cors_origin
         .iter()
         .map(|origin| {
@@ -34,11 +37,12 @@ pub async fn run(
         .nest("/photos", crate::ingest::api::photo_route(ctx.clone()));
 
     #[cfg(feature = "federation")]
-    let router = router.nest("/federation", crate::federation::api::federation_route(ctx.clone()));
+    let router = router.nest(
+        "/federation",
+        crate::federation::api::federation_route(ctx.clone()),
+    );
 
-    let (router, openapi) = router
-        .with_state(ctx.clone())
-        .split_for_parts();
+    let (router, openapi) = router.with_state(ctx.clone()).split_for_parts();
     let openapi = finalize_openapi(openapi);
 
     let router = router
@@ -55,18 +59,22 @@ pub async fn run(
                 .allow_origin(cors_origin)
                 .allow_headers([AUTHORIZATION, CONTENT_TYPE, ACCEPT])
                 .allow_methods([Method::GET, Method::POST])
-                .allow_credentials(true)
+                .allow_credentials(true),
         )
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(rate_limit::global_rate_limit))
         .layer(Extension(ctx.clone()));
 
-    tracing::info!("Iris will be serving at http://{}", &ctx.ingest.config.listen);
+    tracing::info!(
+        "Iris will be serving at http://{}",
+        &ctx.ingest.config.listen
+    );
 
     axum::serve(
         TcpListener::bind(&ctx.ingest.config.listen).await?,
         router.into_make_service_with_connect_info::<SocketAddr>(),
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }

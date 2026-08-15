@@ -6,13 +6,13 @@ pub enum VersionedPhotoMetaScheme {
 
 pub mod v1 {
     use std::collections::HashMap;
-    
+
     use chrono::{DateTime, FixedOffset};
     use serde::{Deserialize, Serialize};
-    
-    use crate::symmetrical_from_into;
+
     use crate::model::{self, ImageMeta, NormalizedRational, Orientation, PhotoOrigin};
-    
+    use crate::symmetrical_from_into;
+
     symmetrical_from_into! {
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub struct PhotoMetaScheme (= model::PhotoMeta) {
@@ -30,7 +30,7 @@ pub mod v1 {
             pub representative_rgb: [u8; 3],
         }
     }
-    
+
     symmetrical_from_into! {
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub struct ImageMetaScheme (= model::ImageMeta) {

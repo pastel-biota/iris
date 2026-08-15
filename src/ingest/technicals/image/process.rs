@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset};
-use image::{Rgb};
+use image::Rgb;
 
 use crate::{
     model::{ImageMeta, Properties},

@@ -20,7 +20,9 @@ pub async fn decode_image(original_bytes: Bytes) -> anyhow::Result<DecodeResult>
         let image = reader.decode()?;
 
         Ok(DecodeResult { image, format })
-    }).await.unwrap()
+    })
+    .await
+    .unwrap()
 }
 
 pub fn get_original_image_meta(
