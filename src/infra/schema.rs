@@ -28,3 +28,20 @@ diesel::table! {
 
 diesel::joinable!(whitelist -> photos (photo_id));
 diesel::allow_tables_to_appear_in_same_query!(photos, whitelist);
+
+diesel::table! {
+    tag_group (group) {
+        group -> Text,
+        display -> Text,
+    }
+}
+
+diesel::table! {
+    tag (name) {
+        name -> Text,
+        group -> Text,
+        display -> Text,
+    }
+}
+diesel::allow_tables_to_appear_in_same_query!(tag_group, tag);
+diesel::joinable!(tag -> tag_group (group));
