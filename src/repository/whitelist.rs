@@ -36,6 +36,8 @@ impl WhitelistRepository {
         let exists = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
+            // Safety: Filteres with the entity name later
+            #[allow(clippy::disallowed_methods)]
             diesel::select(dsl::exists(
                 whitelist::table.filter(
                     whitelist::entity

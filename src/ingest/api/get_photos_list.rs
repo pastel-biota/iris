@@ -14,7 +14,7 @@ use utoipa::openapi::{RefOr, Schema};
 use crate::{
     Context,
     api::error::ApiError,
-    auth::{config::Entity, extractor::IrisSession, session::Session},
+    auth::extractor::IrisSession,
     federation::protocol::Endpoint,
     infra::api::types::{ClientError, SuccessfulResponse, success},
     ingest::api::scheme::PhotoScheme,
@@ -148,12 +148,12 @@ pub async fn get_photos_list(
 ) -> Result<impl IntoResponse, ApiError> {
     let cursor = query.cursor;
     let size = query.size.unwrap_or(50) as usize;
-    let entity = entity_of(&session);
+    let visibility = session.photo_visibility();
 
     let registry = ctx.registry.read().await;
     let photos = registry
         .list_images(
-            entity.as_ref(),
+            visibility.clone(),
             cursor.as_ref().map(GetPhotosListCursor::boundary),
             size,
         )
@@ -161,7 +161,7 @@ pub async fn get_photos_list(
         .map_err(ApiError::internal_during("reading the photo list"))?;
 
     let total_count = registry
-        .total_count(entity.as_ref())
+        .total_count(visibility)
         .await
         .map_err(ApiError::internal_during("reading the total count"))?;
 
@@ -179,10 +179,6 @@ pub async fn get_photos_list(
             photos: photos.into_iter().map(Into::into).collect(),
         })),
     ))
-}
-
-fn entity_of(session: &Session) -> Option<Entity> {
-    session.not_bypassed().map(|session| session.entity.clone())
 }
 
 #[cfg(test)]

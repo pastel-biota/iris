@@ -8,3 +8,7 @@ disallowed-names = [
   "tokio::fs",
   "tokio::path",
 ]
+disallowed-methods = [
+  { path = "diesel::select", reason = "self::filter should define contained query function. Construct the query from there" },
+  { path = "diesel::query_dsl::QueryDsl::into_boxed", reason = "self::filter should define contained query function. Construct the query from there" },
+]

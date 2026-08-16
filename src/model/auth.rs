@@ -79,3 +79,13 @@ impl Whitelist {
         }
     }
 }
+
+/// The set of photos a repository query may return.
+///
+/// This is intentionally separate from whether request authorization was bypassed: both a
+/// bypassed request and an authenticated entity with full image access can see all photos.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PhotoVisibility {
+    All,
+    WhitelistedFor(EntityName),
+}

@@ -4,10 +4,10 @@ use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
 
 use crate::{
-    auth::config::Entity,
     infra::sqlite::SqliteConnection,
     model::{
-        EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, Properties,
+        EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin,
+        PhotoVisibility, Properties,
     },
     repository::{
         config::FederationConfig,
@@ -131,20 +131,22 @@ impl PhotoStorageRegistry {
 
     pub async fn list_images(
         &self,
-        entity: Option<&Entity>,
+        visibility: PhotoVisibility,
         beginning: Option<(i64, &Identifier)>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoMeta>> {
-        self.local_index.list_images(entity, beginning, size).await
+        self.local_index
+            .list_images(visibility, beginning, size)
+            .await
     }
 
     pub async fn get_photos_list_by_id_list(
         &self,
-        entity: Option<Entity>,
+        visibility: PhotoVisibility,
         ids: &[Identifier],
     ) -> anyhow::Result<Vec<PhotoMeta>> {
         self.local_index
-            .get_photos_list_by_ids_list(entity, ids)
+            .get_photos_list_by_ids_list(visibility, ids)
             .await
     }
 
@@ -160,12 +162,16 @@ impl PhotoStorageRegistry {
             .get_photos_list_from_hashes_list(hash_to_lookup)
     }
 
-    pub async fn total_count(&self, entity: Option<&Entity>) -> anyhow::Result<u32> {
-        self.local_index.total_count(entity).await
+    pub async fn total_count(&self, visibility: PhotoVisibility) -> anyhow::Result<u32> {
+        self.local_index.total_count(visibility).await
     }
 
     pub async fn load_photo(&self, id: &Identifier) -> anyhow::Result<Option<PhotoMeta>> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
+        let Some(photo_ref) = self
+            .local_index
+            .get_photo_ref(PhotoVisibility::All, id)
+            .await?
+        else {
             return Ok(None);
         };
 
@@ -251,7 +257,11 @@ impl PhotoStorageRegistry {
         ext: &str,
         content: &[u8],
     ) -> anyhow::Result<()> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
+        let Some(photo_ref) = self
+            .local_index
+            .get_photo_ref(PhotoVisibility::All, id)
+            .await?
+        else {
             anyhow::bail!("The photo with id {id} is not found");
         };
 
@@ -294,7 +304,7 @@ impl PhotoStorageRegistry {
     pub async fn unregister(&mut self, photo_id: &Identifier) -> anyhow::Result<()> {
         if self
             .local_index
-            .get_photo_ref(None, photo_id)
+            .get_photo_ref(PhotoVisibility::All, photo_id)
             .await?
             .is_none()
         {

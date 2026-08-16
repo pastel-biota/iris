@@ -1,17 +1,16 @@
+mod filter;
+
 use std::collections::HashMap;
 
 use anyhow::Context as _;
 use diesel::prelude::*;
 
 use crate::{
-    auth::config::Entity,
-    model::{Identifier, PhotoMeta},
+    model::{Identifier, PhotoMeta, PhotoVisibility},
+    repository::sqlite::filter::select_visible_photos,
 };
 
-use crate::infra::{
-    schema::{photos, whitelist},
-    sqlite::SqliteConnection,
-};
+use crate::infra::{schema::photos, sqlite::SqliteConnection};
 
 pub struct SqlitePhotoIndex {
     db: SqliteConnection,
@@ -80,32 +79,18 @@ impl SqlitePhotoIndex {
 
     pub async fn get_photo_ref(
         &self,
-        entity: Option<Entity>,
+        visibility: PhotoVisibility,
         photo_id: &Identifier,
     ) -> anyhow::Result<Option<PhotoMeta>> {
-        let restrict_to_entity = restrict_to_entity(entity.as_ref());
         let photo_id = photo_id.to_string();
         let pool = self.db.pool();
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            let mut query = photos::table.into_boxed();
-
-            if let Some(entity_name) = &restrict_to_entity {
-                query = query.filter(diesel::dsl::exists(
-                    whitelist::table.filter(
-                        whitelist::photo_id
-                            .eq(photos::id)
-                            .and(whitelist::entity.eq(entity_name)),
-                    ),
-                ));
-            }
-
-            query = query.filter(photos::id.eq(photo_id));
-
-            query
+            select_visible_photos(&visibility)
                 .select((photos::id, photos::cached_meta_json))
+                .filter(photos::id.eq(photo_id))
                 .limit(1)
                 .load(&mut conn)
                 .context("Failed on the DB query")
@@ -118,46 +103,25 @@ impl SqlitePhotoIndex {
 
     pub async fn list_images(
         &self,
-        entity: Option<&Entity>,
+        visibility: PhotoVisibility,
         beginning: Option<(i64, &Identifier)>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoMeta>> {
-        let restrict_to_entity = restrict_to_entity(entity);
-        let begin_cursor = beginning.map(|(shot_time_unix, id)| (shot_time_unix, id.to_string()));
         let pool = self.db.pool();
+        let beginning = beginning.map(|(shot_time, id)| (shot_time, id.clone()));
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            let mut query = photos::table.into_boxed();
+            let mut query = select_visible_photos(&visibility);
 
-            if let Some(entity_name) = &restrict_to_entity {
-                query = query.filter(diesel::dsl::exists(
-                    whitelist::table.filter(
-                        whitelist::photo_id
-                            .eq(photos::id)
-                            .and(whitelist::entity.eq(entity_name)),
-                    ),
-                ));
+            if let Some(beginning) = &beginning {
+                query = filter::select_after_cursor(query, beginning);
             }
-
-            if let Some((begin_shot_time_unix, begin_id)) = &begin_cursor {
-                query = query.filter(
-                    photos::shot_time_unix
-                        .lt(begin_shot_time_unix)
-                        .or(photos::shot_time_unix
-                            .eq(begin_shot_time_unix)
-                            .and(photos::id.lt(begin_id))),
-                );
-            }
-
-            // TODO: Make the sort customizable
-            let query = query
-                .select((photos::id, photos::cached_meta_json))
-                .order_by((photos::shot_time_unix.desc(), photos::id.desc()))
-                .limit(size as i64);
 
             query
+                .select((photos::id, photos::cached_meta_json))
+                .limit(size as i64)
                 .load(&mut conn)
                 .context("Failed on executing the query")
         })
@@ -174,6 +138,9 @@ impl SqlitePhotoIndex {
         let exists = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
+            // Safety: hash conflict check must be done globally and
+            //         this method exposes minimal information
+            #[allow(clippy::disallowed_methods)]
             diesel::select(diesel::dsl::exists(
                 photos::table.filter(photos::original_sha256.eq(&hash)),
             ))
@@ -195,31 +162,17 @@ impl SqlitePhotoIndex {
 
     pub async fn get_photos_list_by_ids_list(
         &self,
-        entity: Option<Entity>,
+        visibility: PhotoVisibility,
         ids: &[Identifier],
     ) -> anyhow::Result<Vec<PhotoMeta>> {
-        let restrict_to_entity = restrict_to_entity(entity.as_ref());
         let id_strings = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
         let pool = self.db.pool();
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            let mut query = photos::table
+            select_visible_photos(&visibility)
                 .filter(photos::id.eq_any(&id_strings))
-                .into_boxed();
-
-            if let Some(entity_name) = &restrict_to_entity {
-                query = query.filter(diesel::dsl::exists(
-                    whitelist::table.filter(
-                        whitelist::photo_id
-                            .eq(photos::id)
-                            .and(whitelist::entity.eq(entity_name)),
-                    ),
-                ));
-            }
-
-            query
                 .select((photos::id, photos::cached_meta_json))
                 .load(&mut conn)
                 .context("Failed on the DB query")
@@ -234,26 +187,13 @@ impl SqlitePhotoIndex {
         todo!();
     }
 
-    pub async fn total_count(&self, entity: Option<&Entity>) -> anyhow::Result<u32> {
-        let restrict_to_entity = restrict_to_entity(entity);
+    pub async fn total_count(&self, visibility: PhotoVisibility) -> anyhow::Result<u32> {
         let pool = self.db.pool();
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<i64> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            let mut query = photos::table.into_boxed();
-
-            if let Some(entity_name) = &restrict_to_entity {
-                query = query.filter(diesel::dsl::exists(
-                    whitelist::table.filter(
-                        whitelist::photo_id
-                            .eq(photos::id)
-                            .and(whitelist::entity.eq(entity_name)),
-                    ),
-                ));
-            }
-
-            query
+            select_visible_photos(&visibility)
                 .count()
                 .get_result(&mut conn)
                 .context("Failed on the DB query")
@@ -262,14 +202,6 @@ impl SqlitePhotoIndex {
         .context("DB task panicked")??;
 
         Ok(rows.try_into().unwrap())
-    }
-}
-
-/// `None` means unrestricted access; `Some(name)` restricts to photos whitelisted for that entity.
-fn restrict_to_entity(entity: Option<&Entity>) -> Option<String> {
-    match entity {
-        Some(entity) if !entity.has_full_image_access() => Some(entity.name().to_string()),
-        _ => None,
     }
 }
 

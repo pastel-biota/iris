@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use rand::RngExt;
 
-use crate::auth::config::Entity;
+use crate::{auth::config::Entity, model::PhotoVisibility};
 
 pub const SESSION_DURATION: chrono::Duration = chrono::Duration::days(7);
 
@@ -45,6 +45,18 @@ impl Session {
         match self {
             Session::Valid(_) => false,
             Session::Bypassed => true,
+        }
+    }
+
+    pub fn photo_visibility(&self) -> PhotoVisibility {
+        match self {
+            Session::Bypassed => PhotoVisibility::All,
+            Session::Valid(session) if session.entity.has_full_image_access() => {
+                PhotoVisibility::All
+            }
+            Session::Valid(session) => {
+                PhotoVisibility::WhitelistedFor(session.entity.name().clone())
+            }
         }
     }
 }
@@ -92,5 +104,46 @@ impl ValidSession {
             entity,
             expires_at: chrono::Utc::now() + SESSION_DURATION,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::EntityName;
+    use std::str::FromStr as _;
+
+    #[test]
+    fn bypassed_session_can_see_all_photos() {
+        assert_eq!(Session::Bypassed.photo_visibility(), PhotoVisibility::All);
+    }
+
+    #[test]
+    fn full_access_entity_can_see_all_photos_without_being_bypassed() {
+        let session = Session::Valid(ValidSession::issue_new(entity("full", true)));
+
+        assert!(!session.is_bypassed());
+        assert_eq!(session.photo_visibility(), PhotoVisibility::All);
+    }
+
+    #[test]
+    fn restricted_entity_can_only_see_its_whitelisted_photos() {
+        let session = Session::Valid(ValidSession::issue_new(entity("restricted", false)));
+
+        assert_eq!(
+            session.photo_visibility(),
+            PhotoVisibility::WhitelistedFor(EntityName::from_str("restricted").unwrap())
+        );
+    }
+
+    fn entity(name: &str, has_full_image_access: bool) -> Entity {
+        serde_json::from_value(serde_json::json!({
+            "user": {
+                "name": name,
+                "password": "unused-in-this-test",
+                "has_full_image_access": has_full_image_access,
+            }
+        }))
+        .unwrap()
     }
 }
