@@ -5,18 +5,30 @@ use anyhow::{Context, bail};
 use chrono::{DateTime, FixedOffset};
 use exif::{Exif, In, Tag, Value};
 
-use crate::model::{Orientation, Properties, Rational, Rotation};
+use crate::{
+    ingest::technicals::image::process::ProcessImageError,
+    model::{Orientation, Properties, Rational, Rotation},
+};
 
 pub struct ExifPayload {
     pub props: Properties,
     pub shot_time: DateTime<FixedOffset>,
 }
 
-pub async fn read_exif(bytes: &[u8]) -> anyhow::Result<ExifPayload> {
+pub async fn read_exif(bytes: &[u8]) -> Result<ExifPayload, ProcessImageError> {
     let mut bytes = Cursor::new(bytes);
     let exifreader = exif::Reader::new();
-    let exif = exifreader.read_from_container(&mut bytes)?;
-    exif_to_image_property(&ExifData(exif))
+    let exif = match exifreader.read_from_container(&mut bytes) {
+        Ok(exif) => exif,
+        Err(exif::Error::InvalidFormat(format)) => {
+            return Err(ProcessImageError::InvalidFormat(format));
+        }
+        Err(err) => {
+            return Err(anyhow::anyhow!(err).into());
+        }
+    };
+
+    Ok(exif_to_image_property(&ExifData(exif))?)
 }
 
 struct ExifData(Exif);

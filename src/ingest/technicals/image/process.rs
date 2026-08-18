@@ -19,7 +19,15 @@ pub struct ProcessedImage {
     pub original_meta: ImageMeta,
 }
 
-pub async fn process_image(original_bytes: Bytes) -> anyhow::Result<ProcessedImage> {
+#[derive(Debug, thiserror::Error)]
+pub enum ProcessImageError {
+    #[error("Invalid format: {0}")]
+    InvalidFormat(&'static str),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
+}
+
+pub async fn process_image(original_bytes: Bytes) -> Result<ProcessedImage, ProcessImageError> {
     let exif_payloads = exif::read_exif(&original_bytes).await?;
 
     let decoded = decode::decode_image(original_bytes.clone()).await?;

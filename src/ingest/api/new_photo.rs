@@ -12,7 +12,7 @@ use crate::{
     ingest::{
         api::scheme::PhotoScheme,
         technicals::image::{
-            process::{get_hash, process_image},
+            process::{ProcessImageError, get_hash, process_image},
             property::process_properties,
         },
     },
@@ -97,9 +97,15 @@ pub async fn new_photo(
         }
     }
 
-    let processed = process_image(bytes.clone())
-        .await
-        .map_err(ApiError::internal_during("processing the image"))?;
+    let processed = match process_image(bytes.clone()).await {
+        Ok(processed) => processed,
+        Err(err @ ProcessImageError::InvalidFormat(_)) => {
+            return Err(err).map_err(ApiError::passthrough(ApiError::BadRequest));
+        }
+        Err(err @ ProcessImageError::Anyhow(_)) => {
+            return Err(err).map_err(ApiError::internal_during("processing the image"));
+        }
+    };
     let properties = process_properties(&ctx.service.property, processed.image_property)
         .map_err(ApiError::internal_during("processing the image properties"))?;
 
