@@ -236,7 +236,9 @@ fn gps_degree(
     } else if refs == plus {
         1.0
     } else {
-        bail!("The reference was not provided in the expected form");
+        bail!(
+            "The reference for the signature was not provided in the expected form: {refs} (expected {minus}/{plus} for -/+)"
+        );
     };
 
     let long_abs = deg.to_f64() + min.to_f64() / 60.0 + sec.to_f64() / 3600.0;
