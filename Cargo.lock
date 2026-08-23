@@ -1663,6 +1663,7 @@ dependencies = [
  "utoipa",
  "utoipa-axum",
  "utoipa-redoc",
+ "walkdir",
 ]
 
 [[package]]

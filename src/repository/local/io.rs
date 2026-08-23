@@ -1,5 +1,7 @@
 pub mod scheme;
 
+use std::path::Path;
+
 use anyhow::{Context, bail};
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _},
@@ -7,12 +9,19 @@ use tokio::{
 };
 
 use crate::{
-    model::{ImageMeta, LocalIdentifier, PhotoMeta},
+    model::{Identifier, ImageMeta, LocalIdentifier, PhotoMeta},
     repository::{
         io::{LengthedStream, ScopedPath},
         local::io::scheme::VersionedPhotoMetaScheme,
     },
 };
+
+#[derive(Clone, Debug)]
+pub struct ScannedPhotoJsons {
+    pub metadata: std::fs::Metadata,
+    pub id: LocalIdentifier,
+    pub path: ScopedPath,
+}
 
 pub struct PhotoStorageDirectory {
     base_dir: ScopedPath,
@@ -23,6 +32,49 @@ impl PhotoStorageDirectory {
         PhotoStorageDirectory {
             base_dir: base_dir.clone(),
         }
+    }
+
+    pub fn scan_photo_jsons(&self) -> impl Iterator<Item = anyhow::Result<ScannedPhotoJsons>> {
+        // walk ./[yyyy]/[mm]/*.json
+
+        let w = walkdir::WalkDir::new(self.base_dir.use_path()).max_depth(3);
+
+        w.into_iter().filter_map(|dir| {
+            let dir = match dir {
+                Ok(dir) => dir,
+                Err(err) => {
+                    return Some(Err(err).context("While trying to scanning the directory"));
+                }
+            };
+
+            let metadata = match dir.metadata() {
+                Ok(meta) => meta,
+                Err(err) => {
+                    return Some(Err(err).context(format!(
+                        "While trying to read the metadata: {}",
+                        dir.path().display()
+                    )));
+                }
+            };
+
+            if !metadata.is_file() {
+                return None;
+            }
+
+            let Ok(relative_path) = dir.path().strip_prefix(self.base_dir.use_path()) else {
+                return None;
+            };
+
+            let Some(photo_id) = is_path_for_photo_with_id(relative_path) else {
+                return None;
+            };
+
+            Some(Ok(ScannedPhotoJsons {
+                metadata,
+                id: LocalIdentifier(photo_id),
+                path: self.base_dir.join(relative_path),
+            }))
+        })
     }
 
     pub fn load_photo_meta(&self, id: &LocalIdentifier) -> anyhow::Result<PhotoMeta> {
@@ -252,4 +304,35 @@ impl PathsForPhoto {
     pub fn for_original_image(&self, ext: &str) -> ScopedPath {
         self.base_dir.join(format!("{}.{}", self.id, ext))
     }
+}
+
+fn is_path_for_photo_with_id(path: &Path) -> Option<Identifier> {
+    let mut component = path.components();
+    let Some(year) = component.next().and_then(|str| str.as_os_str().to_str()) else {
+        return None;
+    };
+    let Some(month) = component.next().and_then(|str| str.as_os_str().to_str()) else {
+        return None;
+    };
+    let Some(json) = component.next().and_then(|str| str.as_os_str().to_str()) else {
+        return None;
+    };
+
+    if !year.chars().all(|char| char.is_ascii_digit()) {
+        return None;
+    }
+
+    if !month.chars().all(|char| char.is_ascii_digit()) {
+        return None;
+    }
+
+    let Some((file_name, "json")) = json.split_once(".") else {
+        return None;
+    };
+
+    let Some((id, "meta")) = file_name.rsplit_once("-") else {
+        return None;
+    };
+
+    id.parse().ok()
 }

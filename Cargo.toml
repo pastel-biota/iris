@@ -48,3 +48,4 @@ axum-limit = "0.1.0"
 diesel = { version = "2.3.11", features = ["sqlite", "r2d2"] }
 diesel_migrations = { version = "2", features = ["sqlite"] }
 libsqlite3-sys = { version = "0.35", features = ["bundled"] }
+walkdir = "2.5.0"

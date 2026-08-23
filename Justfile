@@ -7,3 +7,15 @@ run-source:
 run-receiver:                                        
   RUST_LOG=${RUST_LOG:-iris=debug} cargo r --release -- -c ./_ignored/receiver/iris.toml server
 
+new-migrate DESCRIPTION:
+  diesel migration generate {{DESCRIPTION}}
+
+generate-migrate SQLITE_PATH DESCRIPTION:
+  diesel migration generate \
+    --database-url "sqlite://{{SQLITE_PATH}}" \
+    --diff-schema=src/infra/schema.rs \
+    {{DESCRIPTION}}
+
+run-migrate SQLITE_PATH:
+  diesel migration run \
+    --database-url "sqlite://{{SQLITE_PATH}}"

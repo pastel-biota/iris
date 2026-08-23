@@ -88,6 +88,8 @@ async fn run() -> Result<(), anyhow::Error> {
         rate_limit: RateLimit::default(),
     });
 
+    ctx.registry.write().await.sync_index().await;
+
     match command {
         config::Command::Server => {
             let resources = RunServerResourcees { ctx, event_rx };

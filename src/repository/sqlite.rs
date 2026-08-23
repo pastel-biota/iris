@@ -5,7 +5,7 @@ use diesel::prelude::*;
 
 use crate::{
     auth::config::Entity,
-    model::{Identifier, PhotoReference},
+    model::{Identifier, PhotoMeta, PhotoReference},
 };
 
 use crate::infra::{
@@ -67,7 +67,11 @@ impl SqlitePhotoIndex {
                 ))
                 .on_conflict(photos::id)
                 .do_update()
-                .set(photos::meta_json.eq(serde_json::to_string(&photo).unwrap()))
+                .set((
+                    photos::original_sha256.eq(&photo.hash),
+                    photos::shot_time_unix.eq(photo.shot_time.timestamp()),
+                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
+                ))
                 .execute(&mut conn)
                 .context("Failed to update the DB")?;
 
