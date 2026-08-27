@@ -58,7 +58,11 @@ impl FederatedPhotoIndex {
         let cred = crate::federation::protocol::request::<GetPhotosListEndpoint>(
             Some(&session),
             &host.origin,
-            GetPhotosListQuery { cursor, size },
+            GetPhotosListQuery {
+                cursor,
+                size,
+                tags: None,
+            },
         )
         .await
         .context("Failed to retrieve the photo list from the federated host")?;

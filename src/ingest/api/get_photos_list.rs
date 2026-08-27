@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use axum::{
-    Json,
-    extract::{Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-};
+// This Query from axum_extra can support multivalue query parameter by
+// repeating the same query parameter, where axum itself doesn't support this
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum_extra::extract::Query;
 use base64::{Engine as _, prelude::BASE64_URL_SAFE_NO_PAD};
 use http::Method;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
@@ -18,7 +16,8 @@ use crate::{
     federation::protocol::Endpoint,
     infra::api::types::{ClientError, SuccessfulResponse, success},
     ingest::api::scheme::PhotoScheme,
-    model::{Identifier, PhotoMeta},
+    model::{Identifier, PhotoMeta, TagIdentifier},
+    repository::types::PhotoFilter,
 };
 
 const PHOTOS_LIST_CURSOR_VERSION: u8 = 1;
@@ -112,6 +111,7 @@ impl utoipa::ToSchema for GetPhotosListCursor {
 pub struct GetPhotosListQuery {
     pub cursor: Option<GetPhotosListCursor>,
     pub size: Option<u32>,
+    pub tags: Option<Vec<TagIdentifier>>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -135,6 +135,7 @@ impl Endpoint for GetPhotosListEndpoint {
     params(
         ("cursor" = Option<String>, Query, nullable, description = "An opaque cursor returned by the previous response"),
         ("size" = Option<u32>, Query, nullable, description = "the default is 50"),
+        ("tags" = Option<Vec<TagIdentifier>>, Query, nullable, description = "The tags attached to the photo"),
     ),
     responses(
         (status = OK, description = "The list of images.", body = SuccessfulResponse<GetPhotosListResponse>),
@@ -151,19 +152,17 @@ pub async fn get_photos_list(
     let visibility = session.photo_visibility();
 
     let registry = ctx.registry.read().await;
-    let photos = registry
+    let (photos, total_count) = registry
         .list_images(
             visibility.clone(),
-            cursor.as_ref().map(GetPhotosListCursor::boundary),
-            size,
+            PhotoFilter {
+                beginning: cursor.as_ref().map(GetPhotosListCursor::boundary),
+                size,
+                tag: query.tags.as_deref(),
+            },
         )
         .await
         .map_err(ApiError::internal_during("reading the photo list"))?;
-
-    let total_count = registry
-        .total_count(visibility)
-        .await
-        .map_err(ApiError::internal_during("reading the total count"))?;
 
     let next_cursor = if photos.len() == size {
         photos.last().map(GetPhotosListCursor::from_photo)

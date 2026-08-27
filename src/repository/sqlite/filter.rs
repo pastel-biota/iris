@@ -1,8 +1,8 @@
 use diesel::{prelude::*, sqlite::Sqlite};
 
 use crate::{
-    infra::schema::{photos, whitelist},
-    model::{Identifier, PhotoVisibility},
+    infra::schema::{photo_tag, photos, whitelist},
+    model::{Identifier, PhotoVisibility, TagIdentifier, TagName},
 };
 
 pub type PhotoQuery<'a> = photos::BoxedQuery<'a, Sqlite>;
@@ -38,4 +38,15 @@ pub(super) fn select_after_cursor<'a, 'cur: 'a>(
                 .eq(begin_shot_time_unix)
                 .and(photos::id.lt(begin_id))),
     )
+}
+
+pub(super) fn select_by_tag<'a>(
+    query: PhotoQuery<'a>,
+    tags: impl Iterator<Item = &'a TagIdentifier>,
+) -> PhotoQuery<'a> {
+    query.filter(diesel::dsl::exists(
+        photo_tag::table
+            .filter(photo_tag::photo_id.eq(photos::id))
+            .filter(photo_tag::tag_identifier.eq_any(tags.map(|tag| tag.to_string()))),
+    ))
 }

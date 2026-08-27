@@ -55,6 +55,7 @@ diesel::table! {
         tag_name -> Text,
     }
 }
+diesel::allow_tables_to_appear_in_same_query!(photos, photo_tag);
 diesel::allow_tables_to_appear_in_same_query!(photo_tag, tag);
 diesel::allow_tables_to_appear_in_same_query!(photo_tag, tag_group);
 diesel::joinable!(photo_tag -> photos (photo_id));

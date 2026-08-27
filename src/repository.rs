@@ -5,4 +5,5 @@ pub mod io;
 mod local;
 pub mod registry;
 pub mod sqlite;
+pub mod types;
 pub mod whitelist;

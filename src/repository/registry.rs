@@ -7,7 +7,7 @@ use crate::{
     infra::sqlite::SqliteConnection,
     model::{
         EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin,
-        PhotoVisibility, Properties,
+        PhotoVisibility, Properties, TagName,
     },
     repository::{
         config::FederationConfig,
@@ -16,10 +16,11 @@ use crate::{
         io::{LengthedStream, ScopedPath},
         local::io::PhotoStorageDirectory,
         sqlite::SqlitePhotoIndex,
+        types::PhotoFilter,
     },
 };
 
-pub const INDEXER_NAME: &'static str = "photo-v2";
+pub const INDEXER_NAME: &'static str = "photo-v2_photo-tag";
 
 pub struct PhotoStorageRegistry {
     pub dir: PhotoStorageDirectory,
@@ -129,12 +130,9 @@ impl PhotoStorageRegistry {
     pub async fn list_images(
         &self,
         visibility: PhotoVisibility,
-        beginning: Option<(i64, &Identifier)>,
-        size: usize,
-    ) -> anyhow::Result<Vec<PhotoMeta>> {
-        self.local_index
-            .list_images(visibility, beginning, size)
-            .await
+        filter: PhotoFilter<'_>,
+    ) -> anyhow::Result<(Vec<PhotoMeta>, u32)> {
+        self.local_index.list_images(visibility, filter).await
     }
 
     pub async fn image_exists_with_hash(&self, hash: &str) -> anyhow::Result<bool> {
