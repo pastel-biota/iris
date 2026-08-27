@@ -180,7 +180,8 @@ impl PhotoStorageRegistry {
     pub async fn sync_image_list(&mut self, name: &EntityName) -> anyhow::Result<()> {
         let photos = self
             .federated_index
-            .list_photos(name, None, None)
+            // XXX
+            .list_photos(name, Some(1000), None)
             .await
             .context("Failed to retrieve the photos from federated node")?;
 
@@ -239,7 +240,7 @@ impl PhotoStorageRegistry {
         };
 
         self.dir.create_new_photo_meta(meta.clone())?;
-        self.local_index.add_new_photo(meta.clone().into()).await?;
+        self.local_index.add_new_photo(meta.clone()).await?;
 
         Ok(meta)
     }
@@ -272,7 +273,7 @@ impl PhotoStorageRegistry {
         image: &ImageMeta,
         content: &[u8],
     ) -> anyhow::Result<PhotoMeta> {
-        let mut photo = self
+        let photo = self
             .load_photo(photo_id)
             .await?
             .context("The photo does not exist")?;
@@ -285,9 +286,7 @@ impl PhotoStorageRegistry {
             .dir
             .upload_image(&local_id, image_id, image, content)
             .await?;
-
-        photo.images.insert(image_id.to_string(), image.clone());
-        self.local_index.upsert_photo(photo.into()).await?;
+        self.local_index.upsert_photo(meta.clone()).await?;
 
         Ok(meta)
     }
