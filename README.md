@@ -8,17 +8,14 @@ My self-hosted photo management infrastructure!
 ## Features
 
 - 💽 Is a headless HTTP REST API service without any frontend application.
-- 📝 Easy to control / export - Filesystem + JSON file based state management
+- 📝 Easy to control / export - Filesystem + JSON file based state management (with managed SQLite index for faster querying)
 - 🔐 Reading is public, but writing requires the auth
 - ↔️ Resizes into preconfigured various resolutions.
-  - 📨 It's queued! So if I update many photo at once the resource won't die (hopefully [^just-releasing-now])
-    - (Currently has an issue of hogging tons of RAM if the app receives too many photos, so the image processing does be fine but the ingestion isn't. It's being pointless a bit I need to fix this)
+  - 📨 It's queued with resource gatekeeping! The resource won't suffer if many photos were uploaded at once
 - 🔍 Parses the EXIF metadata and a HEX color close to the photo. Easy to provide rich experience with the photo
 - 🧻 Post-processing of the parsed metadata. (Currently it just has removing the geolocation data though.)
 - 🦀 It's rusty
   - A huge, HUGE shoutout to [various crates](/Cargo.toml) and Rust teams. 95% of my app's value is being delivered from these not even me
-
-[^just-releasing-now]: I'm writing this while the final image for the release is being build. Real-world scenario for this app is the first time, so I'm a little bit nervous about this
 
 ## How does this work? / Why though?
 
@@ -36,14 +33,19 @@ This application records/serves the photo files in the local directory.
   ```
   2026/
     03/
-      01-***.json
-      01-***/
-         01-***-icon.webp
-         01-***-thumbnail.webp
+      202603-***-meta.json
+      202603-***/
+         202603-***-icon.webp
+         202603-***-thumbnail.webp
          ...
   ```
 - Photo's information is recorded as JSON!
 
 This allows the state to be easily modifiable and trackable, and nothing is locked behind the weird binary arbitrary thingamajig.
-But every operation includes text ser/de-ing, I/O operation, and so on... not the fastest. But hey this is for my personal use, so well this works for me!
+Modify the JSON[^need-to-restart-iris] and the Iris' photo state is updated.
+
+To improve the speed, the JSON payload is also saved to the SQLite by Iris as an index, and Iris will use that to provide faster (and much more sane) filtering and builk returning.
+The JSON file is still canonical data, and SQLite index content is updated once the JSON file is modified[^need-to-restart-iris].
+
+[^need-to-restart-iris]: Actually the Iris needs to be restarted to reflect the JSON file change. The file watcher will be added later
 
