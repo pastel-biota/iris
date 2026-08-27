@@ -42,7 +42,7 @@ impl Display for TagName {
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub struct TagIdentifier(TagName, TagName);
+pub struct TagIdentifier(pub TagName, pub TagName);
 
 impl FromStr for TagIdentifier {
     type Err = anyhow::Error;

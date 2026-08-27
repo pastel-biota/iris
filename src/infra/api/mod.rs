@@ -34,6 +34,7 @@ pub async fn run(ctx: Arc<crate::Context>) -> Result<(), anyhow::Error> {
 
     let router = OpenApiRouter::<Arc<crate::Context>>::new()
         .nest("/auth", crate::auth::api::auth_route(ctx.clone()))
+        .nest("/tags", crate::tag::api::tag_route(ctx.clone()))
         .nest("/photos", crate::ingest::api::photo_route(ctx.clone()));
 
     #[cfg(feature = "federation")]

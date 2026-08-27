@@ -13,6 +13,7 @@ use crate::{
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
     repository::{io::ScopedPath, registry::PhotoStorageRegistry},
+    tag::context::TagContext,
 };
 
 pub mod api;
@@ -28,12 +29,14 @@ pub mod model;
 pub mod processor;
 pub mod repository;
 pub mod services;
+pub mod tag;
 pub mod util;
 
 pub struct Context {
     pub base: BaseConfig,
     pub auth: AuthContext,
     pub ingest: IngestContext,
+    pub tag: TagContext,
     pub registry: RwLock<PhotoStorageRegistry>,
     pub service: ServiceContext,
     pub processor: ProcessorContext,
@@ -81,6 +84,7 @@ async fn run() -> Result<(), anyhow::Error> {
         )),
         service: ServiceContext::try_from_config(&config.processors)?,
         auth: AuthContext::new(config.auth, sqlite.clone()),
+        tag: TagContext::new(sqlite.clone()),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
         base: config.base,
