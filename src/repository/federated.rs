@@ -25,7 +25,7 @@ pub struct FederatedPhotoIndex {
 
 #[derive(Clone)]
 pub struct PagedPhotoRefList {
-    pub photos: Vec<PhotoReference>,
+    pub photos: Vec<PhotoMeta>,
     pub next_cursor: Option<GetPhotosListCursor>,
     pub total_count: u32,
 }
@@ -68,7 +68,7 @@ impl FederatedPhotoIndex {
                 .photos
                 .into_iter()
                 .map(|photo| {
-                    let mut photo_ref = PhotoReference::from(photo);
+                    let mut photo_ref = PhotoMeta::from(photo);
                     photo_ref.origin = PhotoOrigin::Federated(RemoteOrigin {
                         federator: name.clone(),
                         identifier: photo_ref.origin.id().clone(),

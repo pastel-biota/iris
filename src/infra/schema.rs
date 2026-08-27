@@ -4,7 +4,7 @@ diesel::table! {
         federated_by -> Nullable<Text>,
         shot_time_unix -> BigInt,
         original_sha256 -> Text,
-        meta_json -> Text,
+        cached_meta_json -> Text,
     }
 }
 

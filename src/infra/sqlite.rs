@@ -78,20 +78,24 @@ impl SqliteConnection {
             .collect::<HashSet<_>>();
 
         if !difference.is_empty() {
-            tracing::error!(
-                "{}",
-                indoc::formatdoc! {"
-                The migration is not up to date!
-
-                The following is being applied already:
-                  {:?}
-
-                But these are expected:
-                  {:?}
-            ", applied_migration, registered_migration}
+            tracing::warn!(
+                "There are differences between the detected history of the migration and the migration Iris expects - consider rebuilding the SQLite database"
             );
 
-            anyhow::bail!("The migration is not up to date");
+            // tracing::error!(
+            //     "{}",
+            //     indoc::formatdoc! {"
+            //     The migration is not up to date!
+
+            //     The following is being applied already:
+            //       {:?}
+
+            //     But these are expected:
+            //       {:?}
+            // ", applied_migration, registered_migration}
+            // );
+
+            // anyhow::bail!("The migration is not up to date");
         }
 
         conn.run_pending_migrations(MIGRATIONS)

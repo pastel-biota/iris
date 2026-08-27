@@ -17,8 +17,8 @@ use crate::{
     auth::{config::Entity, extractor::IrisSession, session::Session},
     federation::protocol::Endpoint,
     infra::api::types::{ClientError, SuccessfulResponse, success},
-    ingest::api::scheme::PhotoReferenceSchema,
-    model::{Identifier, PhotoReference},
+    ingest::api::scheme::PhotoScheme,
+    model::{Identifier, PhotoMeta, PhotoReference},
 };
 
 const PHOTOS_LIST_CURSOR_VERSION: u8 = 1;
@@ -37,7 +37,7 @@ struct GetPhotosListCursorPayload {
 }
 
 impl GetPhotosListCursor {
-    fn from_photo(photo: &PhotoReference) -> Self {
+    fn from_photo(photo: &PhotoMeta) -> Self {
         Self {
             shot_time_unix: photo.shot_time.timestamp(),
             id: photo.id().clone(),
@@ -118,7 +118,7 @@ pub struct GetPhotosListQuery {
 pub struct GetPhotosListResponse {
     pub total_count: u32,
     pub next_cursor: Option<GetPhotosListCursor>,
-    pub photos: Vec<PhotoReferenceSchema>,
+    pub photos: Vec<PhotoScheme>,
 }
 
 pub struct GetPhotosListEndpoint;

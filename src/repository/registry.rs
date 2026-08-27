@@ -20,6 +20,8 @@ use crate::{
     },
 };
 
+pub const INDEXER_NAME: &'static str = "photo-v2";
+
 pub struct PhotoStorageRegistry {
     pub dir: PhotoStorageDirectory,
     pub federated_index: FederatedPhotoIndex,
@@ -70,7 +72,7 @@ impl PhotoStorageRegistry {
             let need_reindex = self
                 .sqlite_indexer
                 .need_reindex(
-                    "photo-v0",
+                    INDEXER_NAME,
                     &format!("photo-{}", photo.id),
                     &photo.path,
                     &photo.metadata,
@@ -114,7 +116,7 @@ impl PhotoStorageRegistry {
                 .unwrap();
             self.sqlite_indexer
                 .record_index(
-                    "photo-v0",
+                    INDEXER_NAME,
                     &format!("photo-{}", photo.id),
                     &photo.path,
                     &photo.metadata,
@@ -133,7 +135,7 @@ impl PhotoStorageRegistry {
         entity: Option<&Entity>,
         beginning: Option<(i64, &Identifier)>,
         size: usize,
-    ) -> anyhow::Result<Vec<PhotoReference>> {
+    ) -> anyhow::Result<Vec<PhotoMeta>> {
         self.local_index.list_images(entity, beginning, size).await
     }
 
@@ -141,7 +143,7 @@ impl PhotoStorageRegistry {
         &self,
         entity: Option<Entity>,
         ids: &[Identifier],
-    ) -> anyhow::Result<Vec<PhotoReference>> {
+    ) -> anyhow::Result<Vec<PhotoMeta>> {
         self.local_index
             .get_photos_list_by_ids_list(entity, ids)
             .await
@@ -174,14 +176,6 @@ impl PhotoStorageRegistry {
                 Ok(Some(self.federated_index.get_photos_meta(remote).await?))
             }
         }
-    }
-
-    pub async fn load_photo_ref(&self, id: &Identifier) -> anyhow::Result<Option<PhotoReference>> {
-        let Some(photo_ref) = self.local_index.get_photo_ref(None, id).await? else {
-            return Ok(None);
-        };
-
-        Ok(Some(photo_ref))
     }
 
     pub async fn sync_image_list(&mut self, name: &EntityName) -> anyhow::Result<()> {
@@ -310,26 +304,5 @@ impl PhotoStorageRegistry {
         };
 
         self.local_index.delete_photo(photo_id)
-    }
-
-    pub async fn insert_photo_reference(
-        &mut self,
-        photo: PhotoReference,
-    ) -> anyhow::Result<Option<()>> {
-        if self.load_photo_ref(photo.id()).await?.is_some() {
-            return Ok(None);
-        }
-
-        if let Some(local_id) = photo.origin.local_id()
-            && !self.dir.photo_exists(local_id)
-        {
-            anyhow::bail!(
-                "This photo has its ownership at the local, but the photo does not exist"
-            );
-        }
-
-        self.local_index.add_new_photo(photo).await?;
-
-        Ok(Some(()))
     }
 }

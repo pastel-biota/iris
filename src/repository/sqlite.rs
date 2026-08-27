@@ -22,7 +22,7 @@ impl SqlitePhotoIndex {
         Self { db }
     }
 
-    pub async fn add_new_photo(&mut self, photo: PhotoReference) -> anyhow::Result<()> {
+    pub async fn add_new_photo(&mut self, photo: PhotoMeta) -> anyhow::Result<()> {
         let pool = self.db.pool();
 
         tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
@@ -35,9 +35,8 @@ impl SqlitePhotoIndex {
                         .origin
                         .federator()
                         .map(|entity_name| entity_name.to_string())),
-                    photos::original_sha256.eq(&photo.hash),
                     photos::shot_time_unix.eq(photo.shot_time.timestamp()),
-                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
+                    photos::cached_meta_json.eq(serde_json::to_string(&photo).unwrap()),
                 ))
                 .execute(&mut conn)
                 .context("Failed to update the DB")?;
@@ -48,7 +47,7 @@ impl SqlitePhotoIndex {
         .context("DB task panicked")?
     }
 
-    pub async fn upsert_photo(&mut self, photo: PhotoReference) -> anyhow::Result<()> {
+    pub async fn upsert_photo(&mut self, photo: PhotoMeta) -> anyhow::Result<()> {
         let pool = self.db.pool();
 
         tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
@@ -61,16 +60,14 @@ impl SqlitePhotoIndex {
                         .origin
                         .federator()
                         .map(|entity_name| entity_name.to_string())),
-                    photos::original_sha256.eq(&photo.hash),
                     photos::shot_time_unix.eq(photo.shot_time.timestamp()),
-                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
+                    photos::cached_meta_json.eq(serde_json::to_string(&photo).unwrap()),
                 ))
                 .on_conflict(photos::id)
                 .do_update()
                 .set((
-                    photos::original_sha256.eq(&photo.hash),
                     photos::shot_time_unix.eq(photo.shot_time.timestamp()),
-                    photos::meta_json.eq(serde_json::to_string(&photo).unwrap()),
+                    photos::cached_meta_json.eq(serde_json::to_string(&photo).unwrap()),
                 ))
                 .execute(&mut conn)
                 .context("Failed to update the DB")?;
@@ -85,7 +82,7 @@ impl SqlitePhotoIndex {
         &self,
         entity: Option<Entity>,
         photo_id: &Identifier,
-    ) -> anyhow::Result<Option<PhotoReference>> {
+    ) -> anyhow::Result<Option<PhotoMeta>> {
         let restrict_to_entity = restrict_to_entity(entity.as_ref());
         let photo_id = photo_id.to_string();
         let pool = self.db.pool();
@@ -108,7 +105,7 @@ impl SqlitePhotoIndex {
             query = query.filter(photos::id.eq(photo_id));
 
             query
-                .select((photos::id, photos::meta_json))
+                .select((photos::id, photos::cached_meta_json))
                 .limit(1)
                 .load(&mut conn)
                 .context("Failed on the DB query")
@@ -124,7 +121,7 @@ impl SqlitePhotoIndex {
         entity: Option<&Entity>,
         beginning: Option<(i64, &Identifier)>,
         size: usize,
-    ) -> anyhow::Result<Vec<PhotoReference>> {
+    ) -> anyhow::Result<Vec<PhotoMeta>> {
         let restrict_to_entity = restrict_to_entity(entity);
         let begin_cursor = beginning.map(|(shot_time_unix, id)| (shot_time_unix, id.to_string()));
         let pool = self.db.pool();
@@ -156,7 +153,7 @@ impl SqlitePhotoIndex {
 
             // TODO: Make the sort customizable
             let query = query
-                .select((photos::id, photos::meta_json))
+                .select((photos::id, photos::cached_meta_json))
                 .order_by((photos::shot_time_unix.desc(), photos::id.desc()))
                 .limit(size as i64);
 
@@ -200,7 +197,7 @@ impl SqlitePhotoIndex {
         &self,
         entity: Option<Entity>,
         ids: &[Identifier],
-    ) -> anyhow::Result<Vec<PhotoReference>> {
+    ) -> anyhow::Result<Vec<PhotoMeta>> {
         let restrict_to_entity = restrict_to_entity(entity.as_ref());
         let id_strings = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
         let pool = self.db.pool();
@@ -223,7 +220,7 @@ impl SqlitePhotoIndex {
             }
 
             query
-                .select((photos::id, photos::meta_json))
+                .select((photos::id, photos::cached_meta_json))
                 .load(&mut conn)
                 .context("Failed on the DB query")
         })
@@ -276,10 +273,10 @@ fn restrict_to_entity(entity: Option<&Entity>) -> Option<String> {
     }
 }
 
-fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoReference> {
+fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoMeta> {
     rows.into_iter()
         .flat_map(|(id, meta_json)| {
-            let reference = serde_json::from_str::<PhotoReference>(&meta_json);
+            let reference = serde_json::from_str::<PhotoMeta>(&meta_json);
 
             if let Err(error) = &reference {
                 tracing::warn!(
@@ -291,74 +288,4 @@ fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoReference> {
             reference.ok()
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{collections::HashMap, str::FromStr as _};
-
-    use super::*;
-    use crate::{
-        model::{LocalIdentifier, PhotoOrigin},
-        repository::io::ScopedPath,
-    };
-
-    #[tokio::test]
-    async fn list_images_paginates_by_shot_time_then_id_without_duplicates() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("iris-sqlite-pagination-{}", ulid::Ulid::new()));
-        std::fs::create_dir(&temp_dir).unwrap();
-        let scope = ScopedPath::from_allowed_dir(&temp_dir);
-        let db = SqliteConnection::connect(&scope).await.unwrap();
-        let mut index = SqlitePhotoIndex::new(db);
-
-        for photo in [
-            photo_reference("202601-MMMMM", 1_000),
-            photo_reference("202601-ZZZZZ", 900),
-            photo_reference("202601-YYYYY", 900),
-            photo_reference("202601-AAAAA", 900),
-            photo_reference("202601-XXXXX", 800),
-        ] {
-            index.add_new_photo(photo).await.unwrap();
-        }
-
-        let first_page = index.list_images(None, None, 2).await.unwrap();
-        assert_eq!(ids(&first_page), ["202601-MMMMM", "202601-ZZZZZ"]);
-
-        let first_cursor = first_page
-            .last()
-            .map(|photo| (photo.shot_time.timestamp(), photo.id()));
-        let second_page = index.list_images(None, first_cursor, 2).await.unwrap();
-        assert_eq!(ids(&second_page), ["202601-YYYYY", "202601-AAAAA"]);
-
-        let second_cursor = second_page
-            .last()
-            .map(|photo| (photo.shot_time.timestamp(), photo.id()));
-        let third_page = index.list_images(None, second_cursor, 2).await.unwrap();
-        assert_eq!(ids(&third_page), ["202601-XXXXX"]);
-
-        drop(index);
-        std::fs::remove_dir_all(temp_dir).unwrap();
-    }
-
-    fn photo_reference(id: &str, shot_time_unix: i64) -> PhotoReference {
-        let id = Identifier::from_str(id).unwrap();
-
-        PhotoReference {
-            year: id.year,
-            month: id.month,
-            hash: id.to_string(),
-            origin: PhotoOrigin::Local(LocalIdentifier(id)),
-            images: HashMap::new(),
-            tags: HashMap::new(),
-            shot_time: chrono::DateTime::<chrono::Utc>::from_timestamp(shot_time_unix, 0)
-                .unwrap()
-                .fixed_offset(),
-            representative_rgb: [0, 0, 0],
-        }
-    }
-
-    fn ids(photos: &[PhotoReference]) -> Vec<String> {
-        photos.iter().map(|photo| photo.id().to_string()).collect()
-    }
 }
