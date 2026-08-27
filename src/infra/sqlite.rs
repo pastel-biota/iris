@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::Context as _;
 use diesel::{
-    connection::SimpleConnection as _,
+    connection::{InstrumentationEvent, SimpleConnection as _},
     r2d2::{ConnectionManager, CustomizeConnection, Pool},
     sqlite::Sqlite,
 };
@@ -37,6 +37,19 @@ impl CustomizeConnection<diesel::sqlite::SqliteConnection, diesel::r2d2::Error>
 impl SqliteConnection {
     pub async fn connect(base_dir: &ScopedPath) -> anyhow::Result<Self> {
         let file_name = base_dir.join("db.sqlite");
+
+        diesel::connection::set_default_instrumentation(|| {
+            Some(Box::new(|event: InstrumentationEvent<'_>| {
+                if let InstrumentationEvent::StartQuery { query, .. } = event {
+                    tracing::trace!(
+                        target: "iris::sql",
+                        sql = %query,
+                        "executing SQL"
+                    );
+                }
+            }))
+        })
+        .expect("failed to configure Diesel instrumentation");
 
         tokio::task::spawn_blocking(move || Self::connect_blocking(&file_name))
             .await

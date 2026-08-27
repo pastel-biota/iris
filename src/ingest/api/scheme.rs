@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::model::{
     EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, PhotoMeta, PhotoOrigin,
-    Properties, RemoteOrigin,
+    Properties, RemoteOrigin, TagIdentifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -25,7 +25,7 @@ pub struct PhotoScheme {
     /// The image ID is used to upload the actual image later.
     images: HashMap<String, ImageMetaScheme>,
 
-    tags: HashMap<String, Vec<String>>,
+    tags: Vec<TagIdentifier>,
 
     shot_datetime: String,
 

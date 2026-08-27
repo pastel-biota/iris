@@ -164,6 +164,7 @@ impl PhotoStorageDirectory {
             })?;
         }
 
+        let meta: PhotoMeta = meta.into();
         let meta = VersionedPhotoMetaScheme::V1(meta.into());
 
         let meta = serde_json::to_vec_pretty(&meta)
@@ -188,6 +189,7 @@ impl PhotoStorageDirectory {
             bail!("The metafile does not exist ('{}')", id);
         }
 
+        let meta = PhotoMeta::from(meta);
         let meta = VersionedPhotoMetaScheme::V1(meta.into());
 
         let meta_json = serde_json::to_vec_pretty(&meta)

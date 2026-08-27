@@ -1,4 +1,5 @@
 mod filter;
+mod meta;
 
 use std::collections::HashMap;
 
@@ -6,8 +7,12 @@ use anyhow::Context as _;
 use diesel::prelude::*;
 
 use crate::{
+    infra::sqlite::ConnectionPool,
     model::{Identifier, PhotoMeta, PhotoVisibility},
-    repository::sqlite::filter::select_visible_photos,
+    repository::sqlite::{
+        filter::{PhotoQuery, select_visible_photos},
+        meta::{PhotoTableRow, rows_into_reference},
+    },
 };
 
 use crate::infra::{schema::photos, sqlite::SqliteConnection};
@@ -83,22 +88,19 @@ impl SqlitePhotoIndex {
         photo_id: &Identifier,
     ) -> anyhow::Result<Option<PhotoMeta>> {
         let photo_id = photo_id.to_string();
-        let pool = self.db.pool();
+        let mut pool = self.db.pool();
 
-        let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
-            let mut conn = pool.get().context("Failed to acquire DB connection")?;
-
-            select_visible_photos(&visibility)
-                .select((photos::id, photos::cached_meta_json))
-                .filter(photos::id.eq(photo_id))
+        let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<PhotoMeta>> {
+            let query = select_visible_photos(&visibility)
                 .limit(1)
-                .load(&mut conn)
-                .context("Failed on the DB query")
+                .filter(photos::id.eq(photo_id));
+
+            query_photo_table(&mut pool, query).map(|photo| photo.into_iter().next())
         })
         .await
         .context("DB task panicked")??;
 
-        Ok(rows_into_references(rows).into_iter().next())
+        Ok(rows)
     }
 
     pub async fn list_images(
@@ -107,28 +109,24 @@ impl SqlitePhotoIndex {
         beginning: Option<(i64, &Identifier)>,
         size: usize,
     ) -> anyhow::Result<Vec<PhotoMeta>> {
-        let pool = self.db.pool();
+        let mut pool = self.db.pool();
         let beginning = beginning.map(|(shot_time, id)| (shot_time, id.clone()));
 
-        let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
-            let mut conn = pool.get().context("Failed to acquire DB connection")?;
-
+        let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<PhotoMeta>> {
             let mut query = select_visible_photos(&visibility);
 
             if let Some(beginning) = &beginning {
                 query = filter::select_after_cursor(query, beginning);
             }
 
-            query
-                .select((photos::id, photos::cached_meta_json))
-                .limit(size as i64)
-                .load(&mut conn)
-                .context("Failed on executing the query")
+            query = query.limit(size as i64);
+
+            query_photo_table(&mut pool, query)
         })
         .await
         .context("DB task panicked")??;
 
-        Ok(rows_into_references(rows))
+        Ok(rows)
     }
 
     pub async fn image_exists_with_hash(&self, hash: &str) -> anyhow::Result<bool> {
@@ -160,29 +158,6 @@ impl SqlitePhotoIndex {
         unimplemented!("Unused");
     }
 
-    pub async fn get_photos_list_by_ids_list(
-        &self,
-        visibility: PhotoVisibility,
-        ids: &[Identifier],
-    ) -> anyhow::Result<Vec<PhotoMeta>> {
-        let id_strings = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
-        let pool = self.db.pool();
-
-        let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
-            let mut conn = pool.get().context("Failed to acquire DB connection")?;
-
-            select_visible_photos(&visibility)
-                .filter(photos::id.eq_any(&id_strings))
-                .select((photos::id, photos::cached_meta_json))
-                .load(&mut conn)
-                .context("Failed on the DB query")
-        })
-        .await
-        .context("DB task panicked")??;
-
-        Ok(rows_into_references(rows))
-    }
-
     pub fn delete_photo(&mut self, _photo_id: &Identifier) -> anyhow::Result<()> {
         todo!();
     }
@@ -205,19 +180,16 @@ impl SqlitePhotoIndex {
     }
 }
 
-fn rows_into_references(rows: Vec<(String, String)>) -> Vec<PhotoMeta> {
-    rows.into_iter()
-        .flat_map(|(id, meta_json)| {
-            let reference = serde_json::from_str::<PhotoMeta>(&meta_json);
+fn query_photo_table<'a>(
+    pool: &mut ConnectionPool,
+    query: PhotoQuery<'a>,
+) -> anyhow::Result<Vec<PhotoMeta>> {
+    let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            if let Err(error) = &reference {
-                tracing::warn!(
-                    "Reference JSON in DB has corruption: for ID {}: {}",
-                    id,
-                    error
-                );
-            }
-            reference.ok()
-        })
-        .collect()
+    let rows = query
+        .select(PhotoTableRow::as_select())
+        .load(&mut conn)
+        .context("Failed on executing the query")?;
+
+    Ok(rows_into_reference(rows))
 }

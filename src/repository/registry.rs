@@ -109,10 +109,7 @@ impl PhotoStorageRegistry {
                 }
             };
 
-            self.local_index
-                .upsert_photo(photo_meta.into())
-                .await
-                .unwrap();
+            self.local_index.upsert_photo(photo_meta).await.unwrap();
             self.sqlite_indexer
                 .record_index(
                     INDEXER_NAME,
@@ -137,16 +134,6 @@ impl PhotoStorageRegistry {
     ) -> anyhow::Result<Vec<PhotoMeta>> {
         self.local_index
             .list_images(visibility, beginning, size)
-            .await
-    }
-
-    pub async fn get_photos_list_by_id_list(
-        &self,
-        visibility: PhotoVisibility,
-        ids: &[Identifier],
-    ) -> anyhow::Result<Vec<PhotoMeta>> {
-        self.local_index
-            .get_photos_list_by_ids_list(visibility, ids)
             .await
     }
 
@@ -176,7 +163,20 @@ impl PhotoStorageRegistry {
         };
 
         match &photo_ref.origin {
-            PhotoOrigin::Local(local_id) => Ok(Some(self.dir.load_photo_meta(local_id)?)),
+            PhotoOrigin::Local(local_id) => {
+                let static_meta = self.dir.load_photo_meta(local_id)?;
+
+                Ok(Some(PhotoMeta {
+                    origin: static_meta.origin,
+                    original: static_meta.original,
+                    original_sha256: static_meta.original_sha256,
+                    properties: static_meta.properties,
+                    shot_time: static_meta.shot_time,
+                    representative_rgb: static_meta.representative_rgb,
+                    images: photo_ref.images,
+                    tags: photo_ref.tags,
+                }))
+            }
             PhotoOrigin::Federated(remote) => {
                 Ok(Some(self.federated_index.get_photos_meta(remote).await?))
             }
@@ -242,7 +242,7 @@ impl PhotoStorageRegistry {
             properties: meta.properties,
             shot_time: meta.shot_time,
             representative_rgb: meta.representative_rgb,
-            tags: HashMap::new(),
+            tags: vec![],
         };
 
         self.dir.create_new_photo_meta(meta.clone())?;
@@ -292,10 +292,22 @@ impl PhotoStorageRegistry {
             anyhow::bail!("You cannot update the original image of non-local (federated) photo");
         };
 
-        let meta = self
+        let static_meta = self
             .dir
             .upload_image(&local_id, image_id, image, content)
             .await?;
+
+        let meta = PhotoMeta {
+            origin: static_meta.origin,
+            original: static_meta.original,
+            images: static_meta.images,
+            original_sha256: static_meta.original_sha256,
+            properties: static_meta.properties,
+            shot_time: static_meta.shot_time,
+            representative_rgb: static_meta.representative_rgb,
+            tags: photo.tags,
+        };
+
         self.local_index.upsert_photo(meta.clone()).await?;
 
         Ok(meta)

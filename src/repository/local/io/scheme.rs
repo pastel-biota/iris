@@ -10,7 +10,9 @@ pub mod v1 {
     use chrono::{DateTime, FixedOffset};
     use serde::{Deserialize, Serialize};
 
-    use crate::model::{self, ImageMeta, NormalizedRational, Orientation, PhotoOrigin};
+    use crate::model::{
+        self, ImageMeta, NormalizedRational, Orientation, PhotoOrigin, TagIdentifier,
+    };
     use crate::symmetrical_from_into;
 
     symmetrical_from_into! {
@@ -23,7 +25,7 @@ pub mod v1 {
                 HashMap<String, model::ImageMeta>
             => x.into_iter().map(|(k, v)| (k, v.into())).collect::<Rty>(),
             #[serde(default)]
-            pub tags: HashMap<String, Vec<String>>,
+            pub tags: Vec<TagIdentifier>,
             pub original_sha256: String,
             pub properties: PropertiesScheme,
             pub shot_time: DateTime<FixedOffset>,

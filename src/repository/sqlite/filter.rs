@@ -5,7 +5,7 @@ use crate::{
     model::{Identifier, PhotoVisibility},
 };
 
-type PhotoQuery<'a> = photos::BoxedQuery<'a, Sqlite>;
+pub type PhotoQuery<'a> = photos::BoxedQuery<'a, Sqlite>;
 
 pub(super) fn select_visible_photos<'a>(visibility: &PhotoVisibility) -> PhotoQuery<'a> {
     #[allow(clippy::disallowed_methods)]

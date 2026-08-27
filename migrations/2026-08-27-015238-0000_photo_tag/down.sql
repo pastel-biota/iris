@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS `tag`;
+DROP TABLE IF EXISTS `tag_group`;
+DROP TABLE IF EXISTS `photo_tag`;

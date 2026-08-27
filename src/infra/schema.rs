@@ -43,5 +43,20 @@ diesel::table! {
         display -> Text,
     }
 }
+
 diesel::allow_tables_to_appear_in_same_query!(tag_group, tag);
 diesel::joinable!(tag -> tag_group (group));
+
+diesel::table! {
+    photo_tag (photo_id, tag_identifier) {
+        photo_id -> Text,
+        tag_identifier -> Text,
+        tag_group -> Text,
+        tag_name -> Text,
+    }
+}
+diesel::allow_tables_to_appear_in_same_query!(photo_tag, tag);
+diesel::allow_tables_to_appear_in_same_query!(photo_tag, tag_group);
+diesel::joinable!(photo_tag -> photos (photo_id));
+diesel::joinable!(photo_tag -> tag_group (tag_group));
+diesel::joinable!(photo_tag -> tag (tag_name));

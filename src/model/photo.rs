@@ -3,15 +3,14 @@ use std::collections::HashMap;
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Identifier, PhotoOrigin};
+use crate::model::{Identifier, PhotoOrigin, TagIdentifier};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhotoMeta {
     pub origin: PhotoOrigin,
     pub original: Option<ImageMeta>,
     pub images: HashMap<String, ImageMeta>,
-    #[serde(default)]
-    pub tags: HashMap<String, Vec<String>>,
+    pub tags: Vec<TagIdentifier>,
     pub original_sha256: String,
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
