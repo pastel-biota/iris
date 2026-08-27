@@ -18,7 +18,7 @@ use crate::{
     federation::protocol::Endpoint,
     infra::api::types::{ClientError, SuccessfulResponse, success},
     ingest::api::scheme::PhotoScheme,
-    model::{Identifier, PhotoMeta, PhotoReference},
+    model::{Identifier, PhotoMeta},
 };
 
 const PHOTOS_LIST_CURSOR_VERSION: u8 = 1;

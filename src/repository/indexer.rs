@@ -1,8 +1,4 @@
-use std::{
-    borrow::Cow,
-    fs::{Metadata, metadata},
-    os::unix::fs::MetadataExt,
-};
+use std::{borrow::Cow, fs::Metadata, os::unix::fs::MetadataExt};
 
 use anyhow::Context as _;
 use diesel::{

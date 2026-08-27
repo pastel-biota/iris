@@ -7,8 +7,7 @@ use crate::{
     auth::config::Entity,
     infra::sqlite::SqliteConnection,
     model::{
-        EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, PhotoReference,
-        Properties,
+        EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin, Properties,
     },
     repository::{
         config::FederationConfig,
@@ -156,7 +155,7 @@ impl PhotoStorageRegistry {
     pub fn get_photos_list_by_hashes_list<'s, 'h>(
         &'s mut self,
         hash_to_lookup: &'h [String],
-    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoMeta>> {
         self.local_index
             .get_photos_list_from_hashes_list(hash_to_lookup)
     }

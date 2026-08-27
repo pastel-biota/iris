@@ -5,7 +5,7 @@ use diesel::prelude::*;
 
 use crate::{
     auth::config::Entity,
-    model::{Identifier, PhotoMeta, PhotoReference},
+    model::{Identifier, PhotoMeta},
 };
 
 use crate::infra::{
@@ -189,7 +189,7 @@ impl SqlitePhotoIndex {
     pub fn get_photos_list_from_hashes_list<'s, 'h>(
         &'s mut self,
         _hashes: &'h [String],
-    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoReference>> {
+    ) -> anyhow::Result<HashMap<&'h str, &'s PhotoMeta>> {
         unimplemented!("Unused");
     }
 

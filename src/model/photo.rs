@@ -79,37 +79,3 @@ pub enum Rotation {
     CounterClockwise,
     Clockwise,
 }
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct PhotoReference {
-    pub origin: PhotoOrigin,
-    pub year: i32,
-    pub month: u32,
-    pub hash: String,
-    pub images: HashMap<String, ImageMeta>,
-    #[serde(default)]
-    pub tags: HashMap<String, Vec<String>>,
-    pub shot_time: DateTime<FixedOffset>,
-    pub representative_rgb: [u8; 3],
-}
-
-impl PhotoReference {
-    pub fn id(&self) -> &Identifier {
-        self.origin.id()
-    }
-}
-
-impl From<PhotoMeta> for PhotoReference {
-    fn from(value: PhotoMeta) -> Self {
-        Self {
-            year: value.origin.id().year,
-            month: value.origin.id().month,
-            origin: value.origin,
-            hash: value.original_sha256,
-            images: value.images.into_iter().collect(),
-            tags: value.tags,
-            shot_time: value.shot_time,
-            representative_rgb: value.representative_rgb,
-        }
-    }
-}

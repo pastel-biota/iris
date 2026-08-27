@@ -7,7 +7,7 @@ use crate::{
     api::error::ApiError,
     auth::extractor::ValidUserSession,
     infra::api::types::{ClientError, SuccessfulResponse, success},
-    ingest::api::scheme::PhotoReferenceSchema,
+    ingest::api::scheme::PhotoScheme,
 };
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -29,7 +29,7 @@ pub struct GetPhotosListByHashesListResponse<'a> {
     /// The map of found hashes and corresponding photos.
     /// Note that this map does not necessarily include all hashes specified,
     /// as not found hashes will not be included.
-    photos: HashMap<&'a str, PhotoReferenceSchema>,
+    photos: HashMap<&'a str, PhotoScheme>,
 }
 
 /// Get photos list by hashes list

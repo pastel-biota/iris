@@ -11,7 +11,7 @@ use crate::{
         get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest},
         get_photos_list::{GetPhotosListCursor, GetPhotosListEndpoint, GetPhotosListQuery},
     },
-    model::{EntityName, PhotoMeta, PhotoOrigin, PhotoReference, RemoteOrigin},
+    model::{EntityName, PhotoMeta, PhotoOrigin, RemoteOrigin},
     repository::{
         config::{FederationConfig, FederationHost},
         io::LengthedStream,
