@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use crate::{infra::sqlite::SqliteConnection, tag::sqlite::SqliteTagRepository};
+use tokio::sync::Mutex;
+
+use crate::tag::sqlite::SqliteTagRepository;
 
 pub struct TagContext {
-    pub repo: Arc<SqliteTagRepository>,
+    pub repo: Arc<Mutex<SqliteTagRepository>>,
 }
 
 impl TagContext {
-    pub fn new(db: SqliteConnection) -> Self {
-        TagContext {
-            repo: Arc::new(SqliteTagRepository::new(db)),
-        }
+    pub fn new(repo: Arc<Mutex<SqliteTagRepository>>) -> Self {
+        TagContext { repo }
     }
 }

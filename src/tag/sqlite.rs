@@ -4,6 +4,7 @@ use diesel::prelude::*;
 use crate::{
     infra::schema,
     model::{Tag, TagGroup, TagIdentifier},
+    tag::types::KnownTags,
 };
 
 use crate::infra::sqlite::SqliteConnection;
@@ -54,6 +55,61 @@ impl TryFrom<TagRow> for Tag {
 impl SqliteTagRepository {
     pub fn new(db: SqliteConnection) -> Self {
         Self { db }
+    }
+
+    pub async fn replace_with_known_tags_set(&self, known_tags: KnownTags) -> anyhow::Result<()> {
+        let pool = self.db.pool();
+
+        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            let mut conn = pool.get().context("Failed to acquire DB connection")?;
+
+            conn.immediate_transaction(|tx| {
+                diesel::dsl::delete(schema::tag::table)
+                    .execute(tx)
+                    .context("Failed on executing the query")?;
+
+                diesel::dsl::delete(schema::tag_group::table)
+                    .execute(tx)
+                    .context("Failed on executing the query")?;
+
+                diesel::dsl::insert_into(schema::tag_group::table)
+                    .values(
+                        known_tags
+                            .tag_groups
+                            .into_iter()
+                            .map(|group| {
+                                (
+                                    schema::tag_group::group.eq(group.name.to_string()),
+                                    schema::tag_group::display.eq(group.display),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .execute(tx)
+                    .context("Failed on executing the query")?;
+
+                diesel::dsl::insert_into(schema::tag::table)
+                    .values(
+                        known_tags
+                            .tags
+                            .into_iter()
+                            .map(|tag| {
+                                (
+                                    schema::tag::group.eq(tag.ident.0.to_string()),
+                                    schema::tag::name.eq(tag.ident.1.to_string()),
+                                    schema::tag::display.eq(tag.display),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .execute(tx)
+                    .context("Failed on executing the query")?;
+
+                Ok(())
+            })
+        })
+        .await
+        .context("DB task panicked")?
     }
 
     pub async fn get_all_known_tags(&self) -> anyhow::Result<Vec<Tag>> {

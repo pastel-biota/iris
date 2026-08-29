@@ -2,7 +2,7 @@ use diesel::{prelude::*, sqlite::Sqlite};
 
 use crate::{
     infra::schema::{photo_tag, photos, whitelist},
-    model::{Identifier, PhotoVisibility, TagIdentifier, TagName},
+    model::{Identifier, PhotoVisibility, TagIdentifier},
 };
 
 pub type PhotoQuery<'a> = photos::BoxedQuery<'a, Sqlite>;

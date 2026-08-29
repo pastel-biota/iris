@@ -1,37 +1,23 @@
 pub mod driver;
 pub mod history;
+pub mod indexer;
 pub mod photo;
 pub mod watch;
 
-use std::sync::Arc;
-
-use diesel::result::DatabaseErrorInformation;
-use tokio::sync::RwLock;
-
 use crate::{
-    index::{driver::FileIndexDriver, history::IndexHistory},
+    index::{driver::FileIndexDriver, history::IndexHistory, indexer::Indexers},
     infra::sqlite::SqliteConnection,
-    repository::{io::ScopedPath, registry::PhotoStorageRegistry},
+    repository::io::ScopedPath,
 };
 
-pub struct IndexInterest<T> {
-    name: String,
-    interest: T,
+pub struct IndexInterest {
+    pub name: String,
 }
 
 pub trait FileIndexer {
-    type PathInterest;
-
-    fn get_index_name(
-        &self,
-        path: &ScopedPath,
-    ) -> anyhow::Result<Option<IndexInterest<Self::PathInterest>>>;
+    fn get_index_name(&self, path: &ScopedPath) -> anyhow::Result<Option<IndexInterest>>;
     fn indexer_version(&self) -> &'static str;
-    fn index(
-        &self,
-        path: Self::PathInterest,
-        file: &ScopedPath,
-    ) -> impl Future<Output = anyhow::Result<()>>;
+    fn index(&self, file: &ScopedPath) -> impl Future<Output = anyhow::Result<()>>;
 }
 
 pub struct IndexerContext {
@@ -39,13 +25,9 @@ pub struct IndexerContext {
 }
 
 impl IndexerContext {
-    pub fn new(
-        dir: &ScopedPath,
-        db: SqliteConnection,
-        registry: Arc<RwLock<PhotoStorageRegistry>>,
-    ) -> Self {
+    pub fn new(dir: &ScopedPath, db: SqliteConnection, indexers: Indexers) -> Self {
         Self {
-            driver: FileIndexDriver::new(dir.clone(), IndexHistory::new(db), registry),
+            driver: FileIndexDriver::new(dir.clone(), IndexHistory::new(db), indexers),
         }
     }
 }

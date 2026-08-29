@@ -1,9 +1,9 @@
 use std::{borrow::Cow, fmt::Display, ops::Deref, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
 use utoipa::openapi::{RefOr, Schema};
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, DeserializeFromStr, SerializeDisplay)]
 pub struct TagName(pub String);
 
 impl Deref for TagName {
@@ -41,7 +41,7 @@ impl Display for TagName {
     }
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, DeserializeFromStr, SerializeDisplay)]
 pub struct TagIdentifier(pub TagName, pub TagName);
 
 impl FromStr for TagIdentifier {
@@ -78,20 +78,6 @@ impl utoipa::PartialSchema for TagIdentifier {
 impl utoipa::ToSchema for TagIdentifier {
     fn name() -> Cow<'static, str> {
         "TagIdentifier".into()
-    }
-}
-
-// TODO: Replace with serde_with
-impl Serialize for TagIdentifier {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for TagIdentifier {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        s.parse().map_err(serde::de::Error::custom)
     }
 }
 

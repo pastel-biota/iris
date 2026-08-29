@@ -2,19 +2,22 @@
 
 use std::{process::ExitCode, sync::Arc};
 
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{
     auth::context::AuthContext,
     config::{BaseConfig, Entry, parse_config},
     entry::server::RunServerResourcees,
     event::{EventSender, create_event_bus},
-    index::{IndexerContext, driver::FileIndexDriver, history::IndexHistory},
+    index::{IndexerContext, indexer::Indexers, photo::PhotoIndexer},
     infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection},
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
     repository::{io::ScopedPath, registry::PhotoStorageRegistry},
-    tag::context::TagContext,
+    tag::{
+        context::TagContext, index::TagIndexer, json::KnownTagsRegistry,
+        sqlite::SqliteTagRepository,
+    },
 };
 
 pub mod api;
@@ -86,18 +89,30 @@ async fn run() -> Result<(), anyhow::Error> {
         &ingest_scope,
     )));
 
+    let tag_registry = Arc::new(Mutex::new(SqliteTagRepository::new(sqlite.clone())));
+
+    let indexer = Indexers {
+        photo_indexer: PhotoIndexer {
+            registry: registry.clone(),
+        },
+        tag_indexer: TagIndexer {
+            json: Arc::new(KnownTagsRegistry::new(ingest_scope.clone())),
+            sqlite: tag_registry.clone(),
+        },
+    };
+
     let ctx = Arc::new(Context {
         scope: ingest_scope.clone(),
         registry: registry.clone(),
         service: ServiceContext::try_from_config(&config.processors)?,
         auth: AuthContext::new(config.auth, sqlite.clone()),
-        tag: TagContext::new(sqlite.clone()),
+        tag: TagContext::new(tag_registry.clone()),
         ingest: IngestContext::new(config.ingest),
         processor: ProcessorContext::new(config.image),
         base: config.base,
         event_tx,
         rate_limit: RateLimit::default(),
-        indexer: IndexerContext::new(&ingest_scope, sqlite.clone(), registry),
+        indexer: IndexerContext::new(&ingest_scope, sqlite.clone(), indexer),
     });
 
     match command {

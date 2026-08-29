@@ -24,15 +24,13 @@ pub fn tag_route(_ctx: Arc<crate::Context>) -> OpenApiRouter<Arc<crate::Context>
     )
 )]
 async fn get_tags(State(ctx): State<Arc<crate::Context>>) -> Result<impl IntoResponse, ApiError> {
-    let tags: Vec<Tag> = ctx
-        .tag
-        .repo
+    let tag_registry = ctx.tag.repo.lock().await;
+
+    let tags: Vec<Tag> = tag_registry
         .get_all_known_tags()
         .await
         .map_err(ApiError::internal_during("Retrieveing tags"))?;
-    let tag_groups: HashMap<TagName, TagGroup> = ctx
-        .tag
-        .repo
+    let tag_groups: HashMap<TagName, TagGroup> = tag_registry
         .get_all_known_tag_groups()
         .await
         .map_err(ApiError::internal_during("Retrieveing tag groups"))?

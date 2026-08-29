@@ -21,48 +21,13 @@ impl PhotoIndexer {
 }
 
 impl FileIndexer for PhotoIndexer {
-    type PathInterest = LocalIdentifier;
-
-    fn get_index_name(
-        &self,
-        path: &ScopedPath,
-    ) -> anyhow::Result<Option<IndexInterest<Self::PathInterest>>> {
-        let components = path.use_relative_path().components();
-
-        let Some([year, month, json]) = components
-            .map(|comp| {
-                comp.as_os_str()
-                    .to_str()
-                    .expect("The path is not UTF-8 compatible")
-            })
-            .try_collect_n()
-        else {
-            return Ok(None);
-        };
-
-        if !year.chars().all(|char| char.is_ascii_digit()) {
-            return Ok(None);
-        }
-
-        if !month.chars().all(|char| char.is_ascii_digit()) {
-            return Ok(None);
-        }
-
-        let Some((file_name, "json")) = json.split_once(".") else {
-            return Ok(None);
-        };
-
-        let Some((id, "meta")) = file_name.rsplit_once("-") else {
-            return Ok(None);
-        };
-
-        let Ok(id) = id.parse() else {
+    fn get_index_name(&self, path: &ScopedPath) -> anyhow::Result<Option<IndexInterest>> {
+        let Some(id) = parse_path(path) else {
             return Ok(None);
         };
 
         Ok(Some(IndexInterest {
             name: format!("photo-{}", id),
-            interest: LocalIdentifier(id),
         }))
     }
 
@@ -70,7 +35,9 @@ impl FileIndexer for PhotoIndexer {
         "photo-v2_photo-tag"
     }
 
-    async fn index(&self, id: LocalIdentifier, _file: &ScopedPath) -> anyhow::Result<()> {
+    async fn index(&self, path: &ScopedPath) -> anyhow::Result<()> {
+        let id = parse_path(path).expect("The path should have been validated");
+
         let mut registry = self.registry.write().await;
 
         let photo_meta = match registry.dir.load_photo_meta(&id) {
@@ -84,4 +51,38 @@ impl FileIndexer for PhotoIndexer {
 
         Ok(())
     }
+}
+
+fn parse_path(path: &ScopedPath) -> Option<LocalIdentifier> {
+    let components = path.use_relative_path().components();
+
+    let Some([year, month, json]) = components
+        .map(|comp| {
+            comp.as_os_str()
+                .to_str()
+                .expect("The path is not UTF-8 compatible")
+        })
+        .try_collect_n()
+    else {
+        return None;
+    };
+
+    if !year.chars().all(|char| char.is_ascii_digit()) {
+        return None;
+    }
+
+    if !month.chars().all(|char| char.is_ascii_digit()) {
+        return None;
+    }
+
+    let Some((file_name, "json")) = json.split_once(".") else {
+        return None;
+    };
+
+    let Some((id, "meta")) = file_name.rsplit_once("-") else {
+        return None;
+    };
+
+    let id = id.parse().ok()?;
+    Some(LocalIdentifier(id))
 }

@@ -1,31 +1,24 @@
 use std::fs::Metadata;
-use std::sync::Arc;
 
 use anyhow::Context;
-use tokio::sync::RwLock;
 
-use super::photo::PhotoIndexer;
 use crate::{
-    index::{FileIndexer, history::IndexHistory},
-    repository::{io::ScopedPath, registry::PhotoStorageRegistry},
+    index::{history::IndexHistory, indexer::Indexers},
+    repository::io::ScopedPath,
 };
 
 pub struct FileIndexDriver {
     dir: ScopedPath,
     history: IndexHistory,
-    photo_indexer: PhotoIndexer,
+    indexers: Indexers,
 }
 
 impl FileIndexDriver {
-    pub fn new(
-        dir: ScopedPath,
-        history: IndexHistory,
-        registry: Arc<RwLock<PhotoStorageRegistry>>,
-    ) -> Self {
+    pub fn new(dir: ScopedPath, history: IndexHistory, indexers: Indexers) -> Self {
         FileIndexDriver {
             dir,
             history,
-            photo_indexer: PhotoIndexer::new(registry),
+            indexers,
         }
     }
 
@@ -80,20 +73,14 @@ impl FileIndexDriver {
     async fn re_index_file(&self, path: &ScopedPath, metadata: Metadata) -> anyhow::Result<bool> {
         let displayed_path = path.display().to_string();
 
-        // TODO: Maybe replace with Vec<Box<dyn FileIndexer>>
-        let Some(interest) = self.photo_indexer.get_index_name(&path)? else {
+        let Some((indexer, interest)) = self.indexers.find_interested_indexer(path)? else {
             tracing::trace!(path = displayed_path, "No indexer is inteersted");
             return Ok(false);
         };
 
         let need_reindex = self
             .history
-            .need_reindex(
-                self.photo_indexer.indexer_version(),
-                &interest.name,
-                path,
-                &metadata,
-            )
+            .need_reindex(indexer.indexer_version(), &interest.name, path, &metadata)
             .await;
 
         let need_reindex = match need_reindex {
@@ -110,15 +97,10 @@ impl FileIndexDriver {
             return Ok(false);
         }
 
-        self.photo_indexer.index(interest.interest, path).await?;
+        indexer.index(path).await?;
 
         self.history
-            .record_index(
-                self.photo_indexer.indexer_version(),
-                &interest.name,
-                path,
-                &metadata,
-            )
+            .record_index(indexer.indexer_version(), &interest.name, path, &metadata)
             .await
             .unwrap();
 
