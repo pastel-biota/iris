@@ -22,11 +22,11 @@ pub struct IndexedFileRow {
     pub projector_version: String,
 }
 
-pub struct SqliteIndexer {
+pub struct IndexHistory {
     db: SqliteConnection,
 }
 
-impl SqliteIndexer {
+impl IndexHistory {
     pub fn new(db: SqliteConnection) -> Self {
         Self { db }
     }

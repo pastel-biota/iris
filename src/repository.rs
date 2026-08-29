@@ -1,6 +1,5 @@
 pub mod config;
 pub mod federated;
-pub mod indexer;
 pub mod io;
 mod local;
 pub mod registry;

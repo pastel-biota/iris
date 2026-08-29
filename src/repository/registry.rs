@@ -7,12 +7,11 @@ use crate::{
     infra::sqlite::SqliteConnection,
     model::{
         EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin,
-        PhotoVisibility, Properties, TagName,
+        PhotoVisibility, Properties,
     },
     repository::{
         config::FederationConfig,
         federated::FederatedPhotoIndex,
-        indexer::SqliteIndexer,
         io::{LengthedStream, ScopedPath},
         local::io::PhotoStorageDirectory,
         sqlite::SqlitePhotoIndex,
@@ -25,7 +24,6 @@ pub const INDEXER_NAME: &'static str = "photo-v2_photo-tag";
 pub struct PhotoStorageRegistry {
     pub dir: PhotoStorageDirectory,
     pub federated_index: FederatedPhotoIndex,
-    pub sqlite_indexer: SqliteIndexer,
     pub local_index: SqlitePhotoIndex,
 }
 
@@ -48,83 +46,7 @@ impl PhotoStorageRegistry {
             dir: PhotoStorageDirectory::new(base_dir),
             federated_index: FederatedPhotoIndex::new(federation_config),
             local_index: SqlitePhotoIndex::new(sqlite_connection.clone()),
-            sqlite_indexer: SqliteIndexer::new(sqlite_connection),
         }
-    }
-
-    pub async fn sync_index(&mut self) {
-        tracing::info!("Starting to re-index");
-
-        let mut re_indexed = 0usize;
-        let mut skipped = 0usize;
-        let mut errored = 0usize;
-
-        for photo in self.dir.scan_photo_jsons() {
-            let photo = match photo {
-                Ok(photo) => photo,
-                Err(err) => {
-                    tracing::warn!("Error during scanning the photo: {}", err);
-                    errored += 1;
-                    continue;
-                }
-            };
-
-            let need_reindex = self
-                .sqlite_indexer
-                .need_reindex(
-                    INDEXER_NAME,
-                    &format!("photo-{}", photo.id),
-                    &photo.path,
-                    &photo.metadata,
-                )
-                .await;
-
-            let need_reindex = match need_reindex {
-                Ok(need_reindex) => need_reindex,
-                Err(err) => {
-                    tracing::warn!(
-                        photo_id = photo.id.to_string(),
-                        "Error during checking the photo needs re-indexing: {}",
-                        err
-                    );
-                    errored += 1;
-                    continue;
-                }
-            };
-
-            if !need_reindex {
-                skipped += 1;
-                continue;
-            }
-
-            let photo_meta = match self.dir.load_photo_meta(&photo.id) {
-                Ok(photo_meta) => photo_meta,
-                Err(err) => {
-                    tracing::warn!(
-                        photo_id = photo.id.to_string(),
-                        "Error during reading the PhotoMeta: {}",
-                        err
-                    );
-                    errored += 1;
-                    continue;
-                }
-            };
-
-            self.local_index.upsert_photo(photo_meta).await.unwrap();
-            self.sqlite_indexer
-                .record_index(
-                    INDEXER_NAME,
-                    &format!("photo-{}", photo.id),
-                    &photo.path,
-                    &photo.metadata,
-                )
-                .await
-                .unwrap();
-
-            re_indexed += 1;
-        }
-
-        tracing::info!(re_indexed, skipped, errored, "Re-indexed photos");
     }
 
     pub async fn list_images(

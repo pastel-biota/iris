@@ -1,7 +1,8 @@
 #[allow(clippy::disallowed_types)]
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
+use std::{fs::Metadata, pin::Pin};
 
+use anyhow::Context as _;
 use futures_util::{Stream, TryStreamExt};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
@@ -11,6 +12,12 @@ use tokio_util::io::ReaderStream;
 pub struct ScopedPath {
     allowed_path: PathBuf,
     path: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+pub struct WalkingFile {
+    pub metadata: Metadata,
+    pub path: ScopedPath,
 }
 
 #[allow(clippy::disallowed_types)]
@@ -31,6 +38,48 @@ impl ScopedPath {
 
     pub fn join(&self, component: impl AsRef<Path>) -> ScopedPath {
         self.with_new_path(self.path.join(component))
+    }
+
+    pub fn use_relative_path(&self) -> &Path {
+        self.path
+            .strip_prefix(&self.allowed_path)
+            .expect("The path does not being from the allowed path")
+    }
+
+    pub fn walk_files(&self) -> impl Iterator<Item = anyhow::Result<WalkingFile>> {
+        let w = walkdir::WalkDir::new(&self.allowed_path);
+
+        w.into_iter().filter_map(|dir| {
+            let dir = match dir {
+                Ok(dir) => dir,
+                Err(err) => {
+                    return Some(Err(err).context("While trying to scanning the directory"));
+                }
+            };
+
+            let metadata = match dir.metadata() {
+                Ok(meta) => meta,
+                Err(err) => {
+                    return Some(Err(err).context(format!(
+                        "While trying to read the metadata: {}",
+                        dir.path().display()
+                    )));
+                }
+            };
+
+            if !metadata.is_file() {
+                return None;
+            }
+
+            let Ok(relative_path) = dir.path().strip_prefix(&self.allowed_path) else {
+                return None;
+            };
+
+            Some(Ok(WalkingFile {
+                metadata,
+                path: self.join(relative_path),
+            }))
+        })
     }
 
     pub fn use_path(&self) -> &Path {

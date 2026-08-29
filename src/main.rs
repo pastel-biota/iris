@@ -9,6 +9,7 @@ use crate::{
     config::{BaseConfig, Entry, parse_config},
     entry::server::RunServerResourcees,
     event::{EventSender, create_event_bus},
+    index::{FileIndexDriver, history::IndexHistory},
     infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection},
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
@@ -22,6 +23,7 @@ pub mod config;
 pub mod entry;
 pub mod event;
 pub mod federation;
+pub mod index;
 pub mod infra;
 pub mod ingest;
 pub mod macros;
@@ -37,7 +39,7 @@ pub struct Context {
     pub auth: AuthContext,
     pub ingest: IngestContext,
     pub tag: TagContext,
-    pub registry: RwLock<PhotoStorageRegistry>,
+    pub registry: Arc<RwLock<PhotoStorageRegistry>>,
     pub service: ServiceContext,
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
@@ -76,12 +78,14 @@ async fn run() -> Result<(), anyhow::Error> {
 
     let sqlite = SqliteConnection::connect(&ingest_scope).await?;
 
+    let registry = Arc::new(RwLock::new(PhotoStorageRegistry::new(
+        config.federation,
+        sqlite.clone(),
+        &ingest_scope,
+    )));
+
     let ctx = Arc::new(Context {
-        registry: RwLock::new(PhotoStorageRegistry::new(
-            config.federation,
-            sqlite.clone(),
-            &ingest_scope,
-        )),
+        registry: registry.clone(),
         service: ServiceContext::try_from_config(&config.processors)?,
         auth: AuthContext::new(config.auth, sqlite.clone()),
         tag: TagContext::new(sqlite.clone()),
@@ -92,7 +96,13 @@ async fn run() -> Result<(), anyhow::Error> {
         rate_limit: RateLimit::default(),
     });
 
-    ctx.registry.write().await.sync_index().await;
+    let indexer = FileIndexDriver::new(
+        ingest_scope.clone(),
+        IndexHistory::new(sqlite.clone()),
+        registry,
+    );
+
+    indexer.fully_reindex().await;
 
     match command {
         config::Command::Server => {
