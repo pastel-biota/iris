@@ -7,6 +7,7 @@ pub mod new_photo;
 pub mod reprocess;
 pub mod scheme;
 pub mod sync;
+pub mod update_photo_meta;
 
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ pub fn photo_route(_ctx: Arc<Context>) -> OpenApiRouter<Arc<Context>> {
     OpenApiRouter::new()
         .routes(routes!(delete::delete))
         .routes(routes!(new_photo::new_photo))
+        .routes(routes!(update_photo_meta::update_photo_meta))
         .routes(routes!(get_photo_meta::get_photo_meta))
         .routes(routes!(get_image::get_image))
         .routes(routes!(get_photos_list::get_photos_list))

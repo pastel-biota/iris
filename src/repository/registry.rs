@@ -83,20 +83,7 @@ impl PhotoStorageRegistry {
         };
 
         match &photo_ref.origin {
-            PhotoOrigin::Local(local_id) => {
-                let static_meta = self.dir.load_photo_meta(local_id)?;
-
-                Ok(Some(PhotoMeta {
-                    origin: static_meta.origin,
-                    original: static_meta.original,
-                    original_sha256: static_meta.original_sha256,
-                    properties: static_meta.properties,
-                    shot_time: static_meta.shot_time,
-                    representative_rgb: static_meta.representative_rgb,
-                    images: photo_ref.images,
-                    tags: photo_ref.tags,
-                }))
-            }
+            PhotoOrigin::Local(local_id) => Ok(Some(self.dir.load_photo_meta(local_id)?)),
             PhotoOrigin::Federated(remote) => {
                 Ok(Some(self.federated_index.get_photos_meta(remote).await?))
             }
@@ -151,6 +138,10 @@ impl PhotoStorageRegistry {
         };
 
         self.dir.load_original_image(local_id, original).await
+    }
+
+    pub fn update_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
+        self.dir.update_photo_meta(meta)
     }
 
     pub async fn new_photo(&mut self, meta: NewPhotoParam) -> anyhow::Result<PhotoMeta> {

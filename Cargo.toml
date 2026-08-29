@@ -52,3 +52,4 @@ libsqlite3-sys = { version = "0.35", features = ["bundled"] }
 walkdir = "2.5.0"
 notify-debouncer-full = "0.7.0"
 notify = "8.2.0"
+json-patch = "4.2.0"

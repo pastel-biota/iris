@@ -52,3 +52,13 @@ macro_rules! map_hash_map {
             => x.into_iter().map(|(k, v)| (k, v.into())).collect::<Rty>()
     }
 }
+
+#[macro_export]
+macro_rules! assert_let {
+    ($pat:pat = $value:expr) => {
+        std::assert_matches!($value, $pat);
+        let $pat = $value else {
+            panic!("The match fail should have been detected in the last assert_matches!");
+        };
+    };
+}

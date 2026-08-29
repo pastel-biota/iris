@@ -1,6 +1,7 @@
 mod auth;
 mod ident;
 mod photo;
+pub mod service;
 mod tag;
 
 pub use auth::*;

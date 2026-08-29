@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use chrono::{DateTime, FixedOffset};
+use json_patch::jsonptr::Pointer;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Identifier, PhotoOrigin, TagIdentifier};
@@ -17,9 +18,61 @@ pub struct PhotoMeta {
     pub representative_rgb: [u8; 3],
 }
 
+#[derive(Debug, Hash, Eq)]
+pub struct ControlledField {
+    pub pointer: &'static Pointer,
+    pub reason: &'static str,
+}
+
+impl ControlledField {
+    pub const fn new(pointer: &'static str, reason: &'static str) -> Self {
+        Self {
+            pointer: Pointer::from_static(pointer),
+            reason,
+        }
+    }
+}
+
+impl Display for ControlledField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.pointer, self.reason)
+    }
+}
+
+impl PartialEq for ControlledField {
+    fn eq(&self, other: &Self) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
+pub const CONTROLLED_FIELDS: &[ControlledField] = &[
+    ControlledField::new(
+        "/origin",
+        "This field contains ID and the photo's ownership, which is immutable",
+    ),
+    ControlledField::new(
+        "/original",
+        "This field contains the uploaded photo's image metadata, which is immutable",
+    ),
+    ControlledField::new(
+        "/images",
+        "This field contains generated image's metadata, which is immutable",
+    ),
+    ControlledField::new(
+        "/original_sha256",
+        "This field contains SHA256 hash of the uploaded photo's image, which is immutable",
+    ),
+];
+
 impl PhotoMeta {
     pub fn id(&self) -> &Identifier {
         self.origin.id()
+    }
+
+    pub fn controlled_field(pointer: &Pointer) -> Option<&'static ControlledField> {
+        CONTROLLED_FIELDS
+            .iter()
+            .find(|ptr| pointer.starts_with(ptr.pointer))
     }
 }
 

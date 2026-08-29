@@ -1,0 +1,54 @@
+{
+  "_v": "v1",
+  "origin": {
+    "Local": "202601-01M1614WZK85XX9W0X24HCP5BR"
+  },
+  "original": {
+    "width": 6240,
+    "height": 4160,
+    "extension": "jpg",
+    "mime": "image/jpeg"
+  },
+  "images": {
+    "main": {
+      "width": 2559,
+      "height": 1706,
+      "extension": "png",
+      "mime": "image/png"
+    },
+    "icon": {
+      "width": 96,
+      "height": 64,
+      "extension": "webp",
+      "mime": "image/webp"
+    },
+    "thumbnail": {
+      "width": 480,
+      "height": 320,
+      "extension": "webp",
+      "mime": "image/webp"
+    }
+  },
+  "tags": [],
+  "original_sha256": "10c87d923c087a5b37c2b93e00c4b1a7c66b322eda786a02f66b6962674a8dc0",
+  "properties": {
+    "gps_lat_lng": null,
+    "machine": "FUJIFILM X-T4",
+    "lens": "SIGMA 18-50mm F2.8 DC DN | Contemporary 021",
+    "f_number": 3.2,
+    "shutter_speed": 50.0,
+    "shutter_speed_controlled": false,
+    "iso": 3200,
+    "focal": 23.5,
+    "orientation": {
+      "rotation": "Upright",
+      "flip": false
+    }
+  },
+  "shot_time": "2026-01-10T20:29:41+09:00",
+  "representative_rgb": [
+    117,
+    102,
+    99
+  ]
+}
