@@ -9,7 +9,7 @@ use crate::{
     config::{BaseConfig, Entry, parse_config},
     entry::server::RunServerResourcees,
     event::{EventSender, create_event_bus},
-    index::{FileIndexDriver, history::IndexHistory},
+    index::{IndexerContext, driver::FileIndexDriver, history::IndexHistory},
     infra::{api::rate_limit::RateLimit, sqlite::SqliteConnection},
     ingest::context::{IngestContext, ServiceContext},
     processor::ProcessorContext,
@@ -35,6 +35,7 @@ pub mod tag;
 pub mod util;
 
 pub struct Context {
+    pub scope: ScopedPath,
     pub base: BaseConfig,
     pub auth: AuthContext,
     pub ingest: IngestContext,
@@ -44,6 +45,7 @@ pub struct Context {
     pub processor: ProcessorContext,
     pub event_tx: EventSender,
     pub rate_limit: RateLimit,
+    pub indexer: IndexerContext,
 }
 
 #[tokio::main]
@@ -85,6 +87,7 @@ async fn run() -> Result<(), anyhow::Error> {
     )));
 
     let ctx = Arc::new(Context {
+        scope: ingest_scope.clone(),
         registry: registry.clone(),
         service: ServiceContext::try_from_config(&config.processors)?,
         auth: AuthContext::new(config.auth, sqlite.clone()),
@@ -94,15 +97,8 @@ async fn run() -> Result<(), anyhow::Error> {
         base: config.base,
         event_tx,
         rate_limit: RateLimit::default(),
+        indexer: IndexerContext::new(&ingest_scope, sqlite.clone(), registry),
     });
-
-    let indexer = FileIndexDriver::new(
-        ingest_scope.clone(),
-        IndexHistory::new(sqlite.clone()),
-        registry,
-    );
-
-    indexer.fully_reindex().await;
 
     match command {
         config::Command::Server => {

@@ -1,11 +1,11 @@
 setup:
   git config core.hooksPath .githooks
 
-run-source:
-  RUST_LOG=${RUST_LOG:-iris=debug} cargo r --release -- -c ./_ignored/source/iris.toml server
-                                                     
-run-receiver:                                        
-  RUST_LOG=${RUST_LOG:-iris=debug} cargo r --release -- -c ./_ignored/receiver/iris.toml server
+run-source *FLAG:
+  RUST_LOG=${RUST_LOG:-iris=debug} cargo r {{FLAG}} -- -c ./_ignored/source/iris.toml server
+
+run-receiver *FLAG:
+  RUST_LOG=${RUST_LOG:-iris=debug} cargo r {{FLAG}} -- -c ./_ignored/receiver/iris.toml server
 
 new-migrate DESCRIPTION:
   diesel migration generate {{DESCRIPTION}}

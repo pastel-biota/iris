@@ -2,7 +2,7 @@
 use std::path::{Path, PathBuf};
 use std::{fs::Metadata, pin::Pin};
 
-use anyhow::Context as _;
+use anyhow::{Context as _, bail};
 use futures_util::{Stream, TryStreamExt};
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
@@ -36,6 +36,14 @@ impl ScopedPath {
         }
     }
 
+    pub fn from_within(scope: &ScopedPath, path: impl AsRef<Path>) -> anyhow::Result<ScopedPath> {
+        if !path.as_ref().starts_with(&scope.allowed_path) {
+            bail!("The path is outside of the scope");
+        }
+
+        Ok(scope.with_new_path(path.as_ref()))
+    }
+
     pub fn join(&self, component: impl AsRef<Path>) -> ScopedPath {
         self.with_new_path(self.path.join(component))
     }
@@ -47,7 +55,7 @@ impl ScopedPath {
     }
 
     pub fn walk_files(&self) -> impl Iterator<Item = anyhow::Result<WalkingFile>> {
-        let w = walkdir::WalkDir::new(&self.allowed_path);
+        let w = walkdir::WalkDir::new(&self.path);
 
         w.into_iter().filter_map(|dir| {
             let dir = match dir {
@@ -71,7 +79,7 @@ impl ScopedPath {
                 return None;
             }
 
-            let Ok(relative_path) = dir.path().strip_prefix(&self.allowed_path) else {
+            let Ok(relative_path) = dir.path().strip_prefix(&self.path) else {
                 return None;
             };
 
