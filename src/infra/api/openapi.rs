@@ -1,9 +1,12 @@
-use utoipa::openapi::{
-    Info, OpenApi,
-    security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityScheme},
+use utoipa::{
+    PartialSchema, ToSchema,
+    openapi::{
+        Info, OpenApi,
+        security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityScheme},
+    },
 };
 
-use crate::auth::protocol::SESSION_COOKIE;
+use crate::{auth::protocol::SESSION_COOKIE, ingest::api::get_photos_list::SortOrderSchema};
 
 pub const AUTH_HEADER: &str = "session_header";
 pub const AUTH_COOKIE: &str = "session_cookie";
@@ -28,6 +31,13 @@ pub fn finalize_openapi(mut openapi: OpenApi) -> OpenApi {
         AUTH_COOKIE,
         SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new(SESSION_COOKIE))),
     );
+
+    // utoipa only auto-collects schemas referenced from `responses`/`request_body`, not from
+    // `params`, so types used exclusively as query parameters need to be registered manually.
+    components
+        .schemas
+        .entry(SortOrderSchema::name().into_owned())
+        .or_insert_with(SortOrderSchema::schema);
 
     openapi
 }

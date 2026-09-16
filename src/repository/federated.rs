@@ -9,7 +9,9 @@ use crate::{
     ingest::api::{
         get_image::{GetImageEndpoint, GetImageRequest},
         get_photo_meta::{GetPhotoMetaEndpoint, GetPhotoMetaRequest},
-        get_photos_list::{GetPhotosListCursor, GetPhotosListEndpoint, GetPhotosListQuery},
+        get_photos_list::{
+            GetPhotosListCursor, GetPhotosListEndpoint, GetPhotosListQuery, SortOrderSchema,
+        },
     },
     model::{EntityName, PhotoMeta, PhotoOrigin, RemoteOrigin},
     repository::{
@@ -62,6 +64,7 @@ impl FederatedPhotoIndex {
                 cursor,
                 size,
                 tags: None,
+                order: SortOrderSchema::ShotTime,
             },
         )
         .await

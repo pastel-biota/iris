@@ -1,16 +1,27 @@
 use diesel::{prelude::*, sqlite::Sqlite};
 
 use crate::{
-    infra::schema::{photo_tag, photos, whitelist},
+    infra::{
+        schema::{photo_tag, photos, whitelist},
+        sqlite::dsl::sqlite_random,
+    },
     model::{Identifier, PhotoVisibility, TagIdentifier},
+    repository::types::SortOrder,
 };
 
 pub type PhotoQuery<'a> = photos::BoxedQuery<'a, Sqlite>;
 
-pub(super) fn select_visible_photos<'a>(visibility: &PhotoVisibility) -> PhotoQuery<'a> {
+pub(super) fn select_visible_photos<'a>(
+    visibility: &PhotoVisibility,
+    order: &SortOrder,
+) -> PhotoQuery<'a> {
     #[allow(clippy::disallowed_methods)]
     let query = photos::table.into_boxed();
-    let query = query.order_by((photos::shot_time_unix.desc(), photos::id.desc()));
+
+    let query = match order {
+        SortOrder::ShotTime => query.order_by((photos::shot_time_unix.desc(), photos::id.desc())),
+        SortOrder::Random => query.order_by(sqlite_random()),
+    };
 
     match visibility {
         PhotoVisibility::All => query,

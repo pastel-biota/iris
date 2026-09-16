@@ -1,3 +1,5 @@
+pub mod dsl;
+
 use std::collections::HashSet;
 
 use anyhow::Context as _;

@@ -14,7 +14,7 @@ use crate::{
             filter::{PhotoQuery, select_visible_photos},
             meta::{PhotoTableRow, rows_into_reference},
         },
-        types::PhotoFilter,
+        types::{PhotoFilter, SortOrder},
     },
 };
 
@@ -126,7 +126,7 @@ impl SqlitePhotoIndex {
         let mut pool = self.db.pool();
 
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<PhotoMeta>> {
-            let query = select_visible_photos(&visibility)
+            let query = select_visible_photos(&visibility, &SortOrder::default())
                 .limit(1)
                 .filter(photos::id.eq(photo_id));
 
@@ -147,6 +147,7 @@ impl SqlitePhotoIndex {
             beginning,
             size,
             tag,
+            order,
         } = filter;
 
         let mut pool = self.db.pool();
@@ -157,7 +158,7 @@ impl SqlitePhotoIndex {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
             let build_query = || {
-                let mut query = select_visible_photos(&visibility);
+                let mut query = select_visible_photos(&visibility, &order);
 
                 if let Some(tag) = &tag {
                     query = filter::select_by_tag(query, tag.iter());
@@ -227,7 +228,7 @@ impl SqlitePhotoIndex {
         let rows = tokio::task::spawn_blocking(move || -> anyhow::Result<i64> {
             let mut conn = pool.get().context("Failed to acquire DB connection")?;
 
-            select_visible_photos(&visibility)
+            select_visible_photos(&visibility, &SortOrder::default())
                 .count()
                 .get_result(&mut conn)
                 .context("Failed on the DB query")

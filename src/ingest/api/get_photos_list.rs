@@ -17,7 +17,7 @@ use crate::{
     infra::api::types::{ClientError, SuccessfulResponse, success},
     ingest::api::scheme::PhotoScheme,
     model::{Identifier, PhotoMeta, TagIdentifier},
-    repository::types::PhotoFilter,
+    repository::types::{PhotoFilter, SortOrder},
 };
 
 const PHOTOS_LIST_CURSOR_VERSION: u8 = 1;
@@ -107,11 +107,35 @@ impl utoipa::ToSchema for GetPhotosListCursor {
     }
 }
 
+#[derive(
+    Clone, Default, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+// This is not automatically collected into the OpenAPI schema definition,
+// because this is not referenced via request_body, response
+// (usage in query() seems not to be collected)
+pub enum SortOrderSchema {
+    #[default]
+    ShotTime,
+    Random,
+}
+
+impl From<SortOrderSchema> for SortOrder {
+    fn from(value: SortOrderSchema) -> Self {
+        match value {
+            SortOrderSchema::ShotTime => SortOrder::ShotTime,
+            SortOrderSchema::Random => SortOrder::Random,
+        }
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct GetPhotosListQuery {
     pub cursor: Option<GetPhotosListCursor>,
     pub size: Option<u32>,
     pub tags: Option<Vec<TagIdentifier>>,
+    #[serde(default)]
+    pub order: SortOrderSchema,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -136,6 +160,7 @@ impl Endpoint for GetPhotosListEndpoint {
         ("cursor" = Option<String>, Query, nullable, description = "An opaque cursor returned by the previous response"),
         ("size" = Option<u32>, Query, nullable, description = "the default is 50"),
         ("tags" = Option<Vec<TagIdentifier>>, Query, nullable, description = "The tags attached to the photo"),
+        ("order" = Option<SortOrderSchema>, Query, nullable, description = "The sort method."),
     ),
     responses(
         (status = OK, description = "The list of images.", body = SuccessfulResponse<GetPhotosListResponse>),
@@ -159,6 +184,7 @@ pub async fn get_photos_list(
                 beginning: cursor.as_ref().map(GetPhotosListCursor::boundary),
                 size,
                 tag: query.tags.as_deref(),
+                order: query.order.into(),
             },
         )
         .await
