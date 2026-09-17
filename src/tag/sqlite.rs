@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use diesel::prelude::*;
 
@@ -19,6 +21,7 @@ pub struct SqliteTagRepository {
 pub struct TagGroupRow {
     pub group: String,
     pub display: String,
+    pub annotations: Option<serde_json::Value>,
 }
 
 impl TryFrom<TagGroupRow> for TagGroup {
@@ -28,6 +31,12 @@ impl TryFrom<TagGroupRow> for TagGroup {
         Ok(Self {
             name: value.group.parse()?,
             display: value.display,
+            annotaions: value
+                .annotations
+                .map(serde_json::from_value)
+                .transpose()
+                .context("The annotation must be object")?
+                .unwrap_or_else(|| HashMap::new()),
         })
     }
 }
@@ -39,6 +48,7 @@ pub struct TagRow {
     pub name: String,
     pub group: String,
     pub display: String,
+    pub annotations: Option<serde_json::Value>,
 }
 
 impl TryFrom<TagRow> for Tag {
@@ -48,6 +58,12 @@ impl TryFrom<TagRow> for Tag {
         Ok(Self {
             display: value.display,
             ident: TagIdentifier(value.group.parse()?, value.name.parse()?),
+            annotaions: value
+                .annotations
+                .map(serde_json::from_value)
+                .transpose()
+                .context("The annotation must be object")?
+                .unwrap_or_else(|| HashMap::new()),
         })
     }
 }
@@ -81,6 +97,8 @@ impl SqliteTagRepository {
                                 (
                                     schema::tag_group::group.eq(group.name.to_string()),
                                     schema::tag_group::display.eq(group.display),
+                                    schema::tag_group::annotations
+                                        .eq(serde_json::to_value(group.annotaions).unwrap()),
                                 )
                             })
                             .collect::<Vec<_>>(),
@@ -98,6 +116,8 @@ impl SqliteTagRepository {
                                     schema::tag::group.eq(tag.ident.0.to_string()),
                                     schema::tag::name.eq(tag.ident.1.to_string()),
                                     schema::tag::display.eq(tag.display),
+                                    schema::tag::annotations
+                                        .eq(serde_json::to_value(tag.annotaions).unwrap()),
                                 )
                             })
                             .collect::<Vec<_>>(),

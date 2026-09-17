@@ -44,7 +44,7 @@ impl FileIndexDriver {
                 Ok(false) => skipped += 1,
                 Err(err) => {
                     let path = file.path.display().to_string();
-                    tracing::warn!(path = path, "Error during processing the JSON: {}", err);
+                    tracing::warn!(path = path, "Error during processing the JSON: {:#?}", err);
                     errored += 1
                 }
             }

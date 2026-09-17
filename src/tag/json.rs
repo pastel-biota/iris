@@ -30,11 +30,13 @@ mod v1 {
     pub struct TagGroupDefinition {
         display: String,
         tags: HashMap<TagName, TagDefinition>,
+        annotations: Option<HashMap<String, serde_json::Value>>,
     }
 
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct TagDefinition {
         display: String,
+        annotations: Option<HashMap<String, serde_json::Value>>,
     }
 
     impl From<TagRegistryPayload> for KnownTags {
@@ -46,6 +48,7 @@ mod v1 {
                 .map(|(name, group)| TagGroup {
                     name: name,
                     display: group.display,
+                    annotaions: group.annotations.unwrap_or_else(|| HashMap::new()),
                 })
                 .collect::<Vec<_>>();
 
@@ -56,6 +59,7 @@ mod v1 {
                     group.tags.into_iter().map(move |(tag_name, tag)| Tag {
                         ident: TagIdentifier(group_name.clone(), tag_name),
                         display: tag.display,
+                        annotaions: tag.annotations.unwrap_or_else(|| HashMap::new()),
                     })
                 })
                 .collect::<Vec<_>>();

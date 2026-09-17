@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, ops::Deref, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
 
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use utoipa::openapi::{RefOr, Schema};
@@ -81,10 +81,13 @@ impl utoipa::ToSchema for TagIdentifier {
     }
 }
 
+pub type Annotations = HashMap<String, serde_json::Value>;
+
 #[derive(Clone, Debug)]
 pub struct TagGroup {
     pub name: TagName,
     pub display: String,
+    pub annotaions: Annotations,
 }
 
 impl Display for TagGroup {
@@ -97,6 +100,7 @@ impl Display for TagGroup {
 pub struct Tag {
     pub ident: TagIdentifier,
     pub display: String,
+    pub annotaions: Annotations,
 }
 
 impl Display for Tag {

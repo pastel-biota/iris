@@ -33,6 +33,7 @@ diesel::table! {
     tag_group (group) {
         group -> Text,
         display -> Text,
+        annotations -> Nullable<Jsonb>,
     }
 }
 
@@ -41,6 +42,7 @@ diesel::table! {
         name -> Text,
         group -> Text,
         display -> Text,
+        annotations -> Nullable<Jsonb>,
     }
 }
 

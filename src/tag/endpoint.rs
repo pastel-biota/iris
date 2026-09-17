@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::model::{Tag, TagGroup};
 
 #[derive(Clone, Debug, serde::Serialize, utoipa::ToSchema)]
@@ -12,6 +14,7 @@ pub struct TagDescriptionScheme {
     pub segments: (String, String),
     pub group_display: Option<String>,
     pub display: String,
+    pub annotations: HashMap<String, serde_json::Value>,
 }
 
 impl TagDescriptionScheme {
@@ -29,6 +32,7 @@ impl TagDescriptionScheme {
                     }
                 })
                 .transpose()?,
+            annotations: tag.annotaions,
         })
     }
 }
@@ -37,6 +41,7 @@ impl TagDescriptionScheme {
 pub struct TagGroupDescriptionScheme {
     pub name: String,
     pub display: String,
+    pub annotations: HashMap<String, serde_json::Value>,
 }
 
 impl From<TagGroup> for TagGroupDescriptionScheme {
@@ -44,6 +49,7 @@ impl From<TagGroup> for TagGroupDescriptionScheme {
         Self {
             name: value.name.to_string(),
             display: value.display,
+            annotations: value.annotaions,
         }
     }
 }

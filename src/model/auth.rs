@@ -45,38 +45,14 @@ impl FromStr for EntityName {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum Whitelist {
     Select { pics: Vec<Identifier> },
-    Everything,
 }
 
 impl Whitelist {
     pub fn new_selective() -> Self {
         Self::Select { pics: Vec::new() }
-    }
-
-    pub fn allow_photos(self, photos: &[Identifier]) -> Self {
-        match self {
-            Whitelist::Select { mut pics } => {
-                pics.extend(photos.iter().cloned());
-                Whitelist::Select { pics }
-            }
-            Whitelist::Everything => self,
-        }
-    }
-
-    pub fn is_allowed(&self, id: &Identifier) -> bool {
-        match self {
-            Self::Select { pics } => pics.contains(id),
-            Self::Everything => true,
-        }
-    }
-
-    pub fn seleted_pics(&self) -> Option<&[Identifier]> {
-        match self {
-            Self::Select { pics } => Some(pics),
-            Self::Everything => None,
-        }
     }
 }
 

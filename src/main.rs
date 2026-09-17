@@ -18,6 +18,9 @@ use crate::{
         context::TagContext, index::TagIndexer, json::KnownTagsRegistry,
         sqlite::SqliteTagRepository,
     },
+    whitelist::{
+        index::WhitelistIndexer, json::WhitelistRegistry, sqlite::SqliteWhitelistRepository,
+    },
 };
 
 pub mod api;
@@ -36,6 +39,7 @@ pub mod repository;
 pub mod services;
 pub mod tag;
 pub mod util;
+pub mod whitelist;
 
 pub struct Context {
     pub scope: ScopedPath,
@@ -98,6 +102,10 @@ async fn run() -> Result<(), anyhow::Error> {
         tag_indexer: TagIndexer {
             json: Arc::new(KnownTagsRegistry::new(ingest_scope.clone())),
             sqlite: tag_registry.clone(),
+        },
+        whitelist_indexer: WhitelistIndexer {
+            json: Arc::new(WhitelistRegistry::new(ingest_scope.clone())),
+            sqlite: Arc::new(Mutex::new(SqliteWhitelistRepository::new(sqlite.clone()))),
         },
     };
 
