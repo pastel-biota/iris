@@ -119,15 +119,21 @@ impl PhotoStorageDirectory {
             .context("Could not read the file's metadata")
     }
 
-    pub async fn load_original_image(
-        &self,
-        photo_id: &LocalIdentifier,
-        image: &ImageMeta,
-    ) -> anyhow::Result<Vec<u8>> {
+    pub async fn load_original_image(&self, photo_id: &LocalIdentifier) -> anyhow::Result<Vec<u8>> {
+        let meta = self.load_photo_meta(photo_id)?;
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
+        let original_file = meta
+            .files
+            .values()
+            .find(|file| file.role.contains(&PhotoRelatedFileRole::Original));
+
+        let Some(original_file) = original_file else {
+            anyhow::bail!("The specified file has no orignal image attached");
+        };
+
         let mut image_file = paths
-            .for_legacy_original_image(&image.extension)
+            .for_related_file(&original_file.file_name)
             .open_file()
             .await
             .context("Failed to open image file")?;

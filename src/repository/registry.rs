@@ -155,7 +155,7 @@ impl PhotoStorageRegistry {
             anyhow::bail!("This photo's original image is not available");
         };
 
-        self.dir.load_original_image(local_id, original).await
+        self.dir.load_original_image(local_id).await
     }
 
     pub fn update_photo_meta(&mut self, meta: PhotoMeta) -> anyhow::Result<()> {
