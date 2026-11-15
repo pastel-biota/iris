@@ -1,3 +1,4 @@
+pub mod append_file;
 pub mod delete;
 pub mod get_image;
 pub mod get_photo_meta;
@@ -28,4 +29,6 @@ pub fn photo_route(_ctx: Arc<Context>) -> OpenApiRouter<Arc<Context>> {
         ))
         .routes(routes!(reprocess::reprocess))
         .routes(routes!(sync::sync))
+        .routes(routes!(append_file::append_file))
+        .layer(axum::extract::DefaultBodyLimit::max(new_photo::MAX_BODY))
 }

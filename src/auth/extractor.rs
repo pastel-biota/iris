@@ -9,6 +9,7 @@ use crate::{
         protocol::{extract_from_cookie, extract_from_header},
         session::{Session, ValidSession},
     },
+    model::PhotoVisibility,
 };
 
 pub struct IrisSession(pub Session);

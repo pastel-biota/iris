@@ -1,6 +1,6 @@
 pub mod scheme;
 
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use anyhow::{Context, bail};
 use tokio::{
@@ -9,8 +9,11 @@ use tokio::{
 };
 
 use crate::{
-    model::{Identifier, ImageMeta, LocalIdentifier, PhotoMeta},
+    model::{
+        Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoRelatedFile, PhotoRelatedFileRole,
+    },
     repository::{
+        federated::PagedPhotoRefList,
         io::{LengthedStream, ScopedPath},
         local::io::scheme::VersionedPhotoMetaScheme,
     },
@@ -124,7 +127,7 @@ impl PhotoStorageDirectory {
         let paths = PathsForPhoto::from_id(&self.base_dir, photo_id);
 
         let mut image_file = paths
-            .for_original_image(&image.extension)
+            .for_legacy_original_image(&image.extension)
             .open_file()
             .await
             .context("Failed to open image file")?;
@@ -215,7 +218,7 @@ impl PhotoStorageDirectory {
         let mut meta = self.load_photo_meta(photo_id)?;
 
         let path = paths.for_image(image_id, &image.extension);
-        self.write_image(&path, image_data).await?;
+        self.write_file(&path, image_data).await?;
 
         meta.images.insert(image_id.to_string(), image.clone());
 
@@ -232,6 +235,43 @@ impl PhotoStorageDirectory {
         Ok(meta)
     }
 
+    pub async fn upload_related_file(
+        &mut self,
+        id: &LocalIdentifier,
+        file: PhotoRelatedFile,
+        file_data: impl AsyncRead,
+    ) -> anyhow::Result<PhotoMeta> {
+        let mut meta = self.load_photo_meta(id)?;
+
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
+        let path = paths.for_related_file(&file.file_name);
+
+        let Some(local_id) = meta.origin.local_id().cloned() else {
+            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
+        };
+
+        if meta.files.contains_key(&file.file_name) {
+            anyhow::bail!(
+                "The related file with the name {} is already registered",
+                &file.file_name
+            );
+        }
+
+        meta.files.insert(file.file_name.clone(), file.clone());
+
+        self.write_file(&path, file_data).await?;
+
+        let meta_for_json = VersionedPhotoMetaScheme::V1(meta.clone().into());
+        let meta_json = serde_json::to_vec_pretty(&meta_for_json)
+            .context("Could not create the JSON represent for the metafile")?;
+        paths
+            .meta()
+            .write(meta_json)
+            .context("Could not write the metaafile for new photo")?;
+
+        Ok(meta)
+    }
+
     pub async fn upload_original_image(
         &mut self,
         id: &LocalIdentifier,
@@ -239,26 +279,67 @@ impl PhotoStorageDirectory {
         image_data: impl AsyncRead,
     ) -> anyhow::Result<()> {
         let paths = PathsForPhoto::from_id(&self.base_dir, id);
-        let path = paths.for_original_image(extension);
+        let path = paths.for_legacy_original_image(extension);
 
-        self.write_image(&path, image_data).await
+        self.write_file(&path, image_data).await
     }
 
-    async fn write_image(
-        &self,
-        path: &ScopedPath,
-        image_data: impl AsyncRead,
-    ) -> anyhow::Result<()> {
+    pub async fn name_legacy_original_file(
+        &mut self,
+        id: &LocalIdentifier,
+        extension: &str,
+        new_file_name: &str,
+    ) -> anyhow::Result<PhotoMeta> {
+        let mut meta = self.load_photo_meta(id)?;
+
+        if meta.files.contains_key(new_file_name) {
+            anyhow::bail!(
+                "The related file with the name {} is already registered",
+                &new_file_name
+            );
+        }
+
+        let paths = PathsForPhoto::from_id(&self.base_dir, id);
+        let legacy_path = paths.for_legacy_original_image(extension);
+        let new_path = paths.for_related_file(new_file_name);
+
+        new_path.parent().unwrap().create_dir_all()?;
+        legacy_path
+            .move_file(&new_path)
+            .await
+            .context("Failed to move the original photo placed at legacy dir (<=v4.0.0)")?;
+
+        meta.file_name_hint = Some(new_file_name.to_string());
+        meta.files.insert(
+            new_file_name.to_string(),
+            PhotoRelatedFile {
+                file_name: new_file_name.to_string(),
+                role: HashSet::from([PhotoRelatedFileRole::Original]),
+            },
+        );
+
+        let meta_for_json = VersionedPhotoMetaScheme::V1(meta.clone().into());
+        let meta_json = serde_json::to_vec_pretty(&meta_for_json)
+            .context("Could not create the JSON represent for the metafile")?;
+        paths
+            .meta()
+            .write(meta_json)
+            .context("Could not write the metaafile for new photo")?;
+
+        Ok(meta)
+    }
+
+    async fn write_file(&self, path: &ScopedPath, file_data: impl AsyncRead) -> anyhow::Result<()> {
         let result = {
             path.parent().unwrap().create_dir_all()?;
             let mut file = path
                 .create_file()
                 .await
-                .context("Failed to open the image file")?;
+                .context("Failed to open the newly created file for writing")?;
 
-            pin!(image_data);
+            pin!(file_data);
 
-            tokio::io::copy(&mut image_data, &mut file).await
+            tokio::io::copy(&mut file_data, &mut file).await
         };
 
         match result {
@@ -276,6 +357,7 @@ impl PhotoStorageDirectory {
 }
 
 struct PathsForPhoto {
+    iris_root: ScopedPath,
     base_dir: ScopedPath,
     id: LocalIdentifier,
 }
@@ -283,6 +365,7 @@ struct PathsForPhoto {
 impl PathsForPhoto {
     pub fn from_id(base_dir: &ScopedPath, id: &LocalIdentifier) -> Self {
         PathsForPhoto {
+            iris_root: base_dir.clone(),
             base_dir: base_dir
                 .join(format!("{:04}", id.year))
                 .join(format!("{:02}", id.month)),
@@ -303,8 +386,17 @@ impl PathsForPhoto {
             .join(format!("{}-{}.{}", self.id, img_id, ext))
     }
 
-    pub fn for_original_image(&self, ext: &str) -> ScopedPath {
+    pub fn for_legacy_original_image(&self, ext: &str) -> ScopedPath {
         self.base_dir.join(format!("{}.{}", self.id, ext))
+    }
+
+    pub fn for_related_file(&self, file_name: &str) -> ScopedPath {
+        self.iris_root
+            .join("related_files")
+            .join(format!("{:04}", self.id.year))
+            .join(format!("{:02}", self.id.month))
+            .join(self.id.to_string())
+            .join(file_name)
     }
 }
 

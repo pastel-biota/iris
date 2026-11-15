@@ -105,6 +105,14 @@ impl ValidSession {
             expires_at: chrono::Utc::now() + SESSION_DURATION,
         }
     }
+
+    pub fn photo_visibility(&self) -> PhotoVisibility {
+        if self.entity.has_full_image_access() {
+            PhotoVisibility::All
+        } else {
+            PhotoVisibility::WhitelistedFor(self.entity.name().clone())
+        }
+    }
 }
 
 #[cfg(test)]

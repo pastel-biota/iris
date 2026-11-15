@@ -11,7 +11,8 @@ pub mod v1 {
     use serde::{Deserialize, Serialize};
 
     use crate::model::{
-        self, ImageMeta, NormalizedRational, Orientation, PhotoOrigin, TagIdentifier,
+        self, ImageMeta, NormalizedRational, Orientation, PhotoOrigin, PhotoRelatedFile,
+        TagIdentifier,
     };
     use crate::symmetrical_from_into;
 
@@ -30,6 +31,10 @@ pub mod v1 {
             pub properties: PropertiesScheme,
             pub shot_time: DateTime<FixedOffset>,
             pub representative_rgb: [u8; 3],
+            #[serde(default)]
+            pub file_name_hint: Option<String>,
+            #[serde(default)]
+            pub files: HashMap<String, PhotoRelatedFile>,
         }
     }
 

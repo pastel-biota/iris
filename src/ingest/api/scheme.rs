@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::model::{
     EntityName, Identifier, ImageMeta, LocalIdentifier, NormalizedRational, PhotoMeta, PhotoOrigin,
-    Properties, RemoteOrigin, TagIdentifier,
+    PhotoRelatedFile, Properties, RemoteOrigin, TagIdentifier,
 };
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -33,6 +33,10 @@ pub struct PhotoScheme {
     representative_color: String,
 
     properties: PropertiesSchema,
+
+    file_name_hint: Option<String>,
+
+    files: HashMap<String, PhotoRelatedFile>,
 }
 
 impl From<PhotoMeta> for PhotoScheme {
@@ -53,6 +57,8 @@ impl From<PhotoMeta> for PhotoScheme {
                 let [r, g, b] = value.representative_rgb;
                 format!("#{:02x}{:02x}{:02x}", r, g, b)
             },
+            file_name_hint: value.file_name_hint,
+            files: value.files,
         }
     }
 }
@@ -88,6 +94,8 @@ impl From<PhotoScheme> for PhotoMeta {
             original: None,
             original_sha256: value.original_sha256,
             properties: value.properties.into(),
+            file_name_hint: value.file_name_hint,
+            files: value.files,
         }
     }
 }

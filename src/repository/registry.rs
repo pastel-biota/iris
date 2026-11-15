@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Context;
 use chrono::{DateTime, FixedOffset};
+use tokio::io::AsyncRead;
 
 use crate::{
     infra::sqlite::SqliteConnection,
     model::{
         EntityName, Identifier, ImageMeta, LocalIdentifier, PhotoMeta, PhotoOrigin,
-        PhotoVisibility, Properties,
+        PhotoRelatedFile, PhotoRelatedFileRole, PhotoVisibility, Properties,
     },
     repository::{
         config::FederationConfig,
@@ -34,6 +35,7 @@ pub struct NewPhotoParam {
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
+    pub file_name_hint: String,
 }
 
 impl PhotoStorageRegistry {
@@ -55,6 +57,22 @@ impl PhotoStorageRegistry {
         filter: PhotoFilter<'_>,
     ) -> anyhow::Result<(Vec<PhotoMeta>, u32)> {
         self.local_index.list_images(visibility, filter).await
+    }
+
+    pub async fn get_image_with_hash(
+        &self,
+        visibility: PhotoVisibility,
+        hash: &str,
+    ) -> anyhow::Result<Option<PhotoMeta>> {
+        self.local_index.get_image_with_hash(visibility, hash).await
+    }
+
+    pub async fn get_image_from_stem(
+        &self,
+        visibility: PhotoVisibility,
+        stem: &str,
+    ) -> anyhow::Result<Option<PhotoMeta>> {
+        self.local_index.get_image_with_stem(visibility, stem).await
     }
 
     pub async fn image_exists_with_hash(&self, hash: &str) -> anyhow::Result<bool> {
@@ -153,7 +171,9 @@ impl PhotoStorageRegistry {
             properties: meta.properties,
             shot_time: meta.shot_time,
             representative_rgb: meta.representative_rgb,
+            file_name_hint: Some(meta.file_name_hint),
             tags: vec![],
+            files: HashMap::new(),
         };
 
         self.dir.create_new_photo_meta(meta.clone())?;
@@ -165,9 +185,9 @@ impl PhotoStorageRegistry {
     pub async fn upload_original_image(
         &mut self,
         id: &Identifier,
-        ext: &str,
-        content: &[u8],
-    ) -> anyhow::Result<()> {
+        file_name: &str,
+        file_data: impl AsyncRead,
+    ) -> anyhow::Result<PhotoMeta> {
         let Some(photo_ref) = self
             .local_index
             .get_photo_ref(PhotoVisibility::All, id)
@@ -180,11 +200,63 @@ impl PhotoStorageRegistry {
             anyhow::bail!("You cannot update the original image of non-local (federated) photo");
         };
 
-        self.dir
-            .upload_original_image(local_id, ext, content)
-            .await?;
+        let original_file = PhotoRelatedFile {
+            file_name: file_name.to_string(),
+            role: HashSet::from([PhotoRelatedFileRole::Original]),
+        };
 
-        Ok(())
+        self.dir
+            .upload_related_file(local_id, original_file, file_data)
+            .await
+    }
+
+    pub async fn upload_related_file(
+        &mut self,
+        photo_id: &Identifier,
+        file: PhotoRelatedFile,
+        file_data: impl AsyncRead,
+    ) -> anyhow::Result<PhotoMeta> {
+        let Some(photo_ref) = self
+            .local_index
+            .get_photo_ref(PhotoVisibility::All, photo_id)
+            .await?
+        else {
+            anyhow::bail!("The photo with id {photo_id} is not found");
+        };
+
+        let Some(local_id) = photo_ref.origin.local_id() else {
+            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
+        };
+
+        self.dir
+            .upload_related_file(local_id, file, file_data)
+            .await
+    }
+
+    pub async fn rename_legacy_file(
+        &mut self,
+        photo_id: &Identifier,
+        file_name: &str,
+    ) -> anyhow::Result<PhotoMeta> {
+        let Some(photo_ref) = self
+            .local_index
+            .get_photo_ref(PhotoVisibility::All, photo_id)
+            .await?
+        else {
+            anyhow::bail!("The photo with id {photo_id} is not found");
+        };
+
+        let Some(local_id) = photo_ref.origin.local_id() else {
+            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
+        };
+
+        let Some(original) = &photo_ref.original else {
+            anyhow::bail!("You cannot update the original image of non-local (federated) photo");
+        };
+
+        self.dir
+            .name_legacy_original_file(local_id, &original.extension, &file_name)
+            .await
     }
 
     pub async fn upload_image(
@@ -203,25 +275,14 @@ impl PhotoStorageRegistry {
             anyhow::bail!("You cannot update the original image of non-local (federated) photo");
         };
 
-        let static_meta = self
+        let photo = self
             .dir
             .upload_image(&local_id, image_id, image, content)
             .await?;
 
-        let meta = PhotoMeta {
-            origin: static_meta.origin,
-            original: static_meta.original,
-            images: static_meta.images,
-            original_sha256: static_meta.original_sha256,
-            properties: static_meta.properties,
-            shot_time: static_meta.shot_time,
-            representative_rgb: static_meta.representative_rgb,
-            tags: photo.tags,
-        };
+        self.local_index.upsert_photo(photo.clone()).await?;
 
-        self.local_index.upsert_photo(meta.clone()).await?;
-
-        Ok(meta)
+        Ok(photo)
     }
 
     pub async fn unregister(&mut self, photo_id: &Identifier) -> anyhow::Result<()> {

@@ -1,4 +1,4 @@
-use diesel::{prelude::*, sqlite::Sqlite};
+use diesel::{dsl, prelude::*, sqlite::Sqlite};
 
 use crate::{
     infra::{
@@ -60,4 +60,18 @@ pub(super) fn select_by_tag<'a>(
             .filter(photo_tag::photo_id.eq(photos::id))
             .filter(photo_tag::tag_identifier.eq_any(tags.map(|tag| tag.to_string()))),
     ))
+}
+
+pub(super) fn select_by_hash<'a>(query: PhotoQuery<'a>, hash: &'a str) -> PhotoQuery<'a> {
+    query.filter(photos::original_sha256.eq(hash))
+}
+
+pub(super) fn select_by_stem<'a>(query: PhotoQuery<'a>, stem: &'a str) -> PhotoQuery<'a> {
+    query.filter(
+        diesel::dsl::json_extract_string(
+            diesel::dsl::json(photos::cached_meta_json),
+            "$.file_name_hint",
+        )
+        .like(format!("{stem}.%")),
+    )
 }

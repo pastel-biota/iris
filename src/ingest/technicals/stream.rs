@@ -3,6 +3,7 @@
 
 use std::{
     io::{ErrorKind, Write},
+    marker::PhantomData,
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::PathBuf,
 };
@@ -10,6 +11,7 @@ use std::{
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use tokio::{
+    io::AsyncRead,
     pin,
     sync::{Semaphore, SemaphorePermit},
 };
@@ -127,7 +129,7 @@ impl<'s> StreamPayloadHandle<'s> {
         })
     }
 
-    pub async fn read(self) -> Result<OpenedPayload<'s>, std::io::Error> {
+    pub async fn read(&self) -> Result<OpenedPayload<'s>, std::io::Error> {
         let meta = self.ephemeral_path.metadata()?;
 
         let size = meta.size().try_into().unwrap();
@@ -141,6 +143,16 @@ impl<'s> StreamPayloadHandle<'s> {
         Ok(OpenedPayload {
             bytes: std::fs::read(&self.ephemeral_path)?.into(),
             _permit: permit,
+        })
+    }
+
+    pub async fn stream_read(
+        &self,
+    ) -> Result<StreamableOpenedPayload<impl AsyncRead>, std::io::Error> {
+        let file = tokio::fs::File::open(self.ephemeral_path.clone()).await?;
+        Ok(StreamableOpenedPayload {
+            stream: file,
+            _phantom: PhantomData,
         })
     }
 
@@ -164,6 +176,11 @@ impl<'s> StreamPayloadHandle<'s> {
 pub struct OpenedPayload<'s> {
     pub bytes: Bytes,
     _permit: SemaphorePermit<'s>,
+}
+
+pub struct StreamableOpenedPayload<'s, F: AsyncRead> {
+    pub stream: F,
+    _phantom: PhantomData<&'s ()>,
 }
 
 impl Drop for StreamPayloadHandle<'_> {
