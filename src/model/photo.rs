@@ -1,6 +1,10 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 use chrono::{DateTime, FixedOffset};
+use image::ImageFormat;
 use json_patch::jsonptr::Pointer;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +20,49 @@ pub struct PhotoMeta {
     pub properties: Properties,
     pub shot_time: DateTime<FixedOffset>,
     pub representative_rgb: [u8; 3],
+
+    // FIXME: Sqlite index saves this type directly
+    #[serde(default)]
+    pub files: HashMap<String, PhotoRelatedFile>,
+    #[serde(default)]
+    pub file_name_hint: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct PhotoRelatedFile {
+    pub file_name: String,
+    pub role: HashSet<PhotoRelatedFileRole>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq, utoipa::ToSchema)]
+pub enum PhotoRelatedFileRole {
+    Original,
+    RAW,
+}
+
+impl PhotoRelatedFileRole {
+    pub fn from_ext(extension: &str) -> Option<PhotoRelatedFileRole> {
+        let extension = extension.to_lowercase();
+        match extension.as_str() {
+            // FUJIFILM RAW
+            "raf" => return Some(PhotoRelatedFileRole::RAW),
+            // Canon RAW
+            "cr3" | "cr2" | "crw" => return Some(PhotoRelatedFileRole::RAW),
+            // Pixel RAW
+            "dng" => return Some(PhotoRelatedFileRole::RAW),
+            _ => {}
+        }
+
+        let format = ImageFormat::from_extension(extension)?;
+        match format {
+            ImageFormat::Png
+            | ImageFormat::Jpeg
+            | ImageFormat::Gif
+            | ImageFormat::WebP
+            | ImageFormat::Avif => Some(PhotoRelatedFileRole::Original),
+            _ => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, Hash, Eq)]

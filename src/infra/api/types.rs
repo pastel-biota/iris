@@ -57,3 +57,9 @@ impl From<Vec<u8>> for BinaryBody {
         BinaryBody(value)
     }
 }
+
+#[derive(ToSchema)]
+pub struct FileForm {
+    name: Option<String>,
+    file: BinaryBody,
+}

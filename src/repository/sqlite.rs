@@ -11,8 +11,8 @@ use crate::{
     model::{Identifier, PhotoMeta, PhotoVisibility},
     repository::{
         sqlite::{
-            filter::{PhotoQuery, select_visible_photos},
-            meta::{PhotoTableRow, rows_into_reference},
+            filter::{PhotoQuery, select_by_hash, select_by_stem, select_visible_photos},
+            meta::{ParsedPhotoTableRow, PhotoTableRow, rows_into_reference},
         },
         types::{PhotoFilter, SortOrder},
     },
@@ -211,6 +211,69 @@ impl SqlitePhotoIndex {
         Ok(exists)
     }
 
+    // // Safety: hash conflict check must be done globally and
+    // //         this method exposes minimal information
+    // #[allow(clippy::disallowed_methods)]
+    // diesel::select(diesel::dsl::exists(
+    //     photos::table.filter(photos::original_sha256.eq(&hash)),
+    // ))
+    // .get_result(&mut conn)
+    // .context("Failed on the DB query")
+
+    pub async fn get_image_with_hash(
+        &self,
+        visibility: PhotoVisibility,
+        hash: &str,
+    ) -> anyhow::Result<Option<PhotoMeta>> {
+        let mut pool = self.db.pool();
+
+        let hash = hash.to_string();
+        let row = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<PhotoMeta>> {
+            let query = {
+                // Safety: single image retrieval so the order doesn't really matter
+                let mut query = select_visible_photos(&visibility, &SortOrder::ShotTime);
+                query = select_by_hash(query, &hash);
+
+                query
+            };
+
+            let query = query.limit(1);
+
+            Ok(query_single_photo_table(&mut pool, query)?)
+        })
+        .await
+        .context("DB task panicked")??;
+
+        Ok(row)
+    }
+
+    pub async fn get_image_with_stem(
+        &self,
+        visibility: PhotoVisibility,
+        stem: &str,
+    ) -> anyhow::Result<Option<PhotoMeta>> {
+        let mut pool = self.db.pool();
+
+        let hash = stem.to_string();
+        let row = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<PhotoMeta>> {
+            let query = {
+                // Safety: single image retrieval so the order doesn't really matter
+                let mut query = select_visible_photos(&visibility, &SortOrder::ShotTime);
+                query = select_by_stem(query, &hash);
+
+                query
+            };
+
+            let query = query.limit(1);
+
+            Ok(query_single_photo_table(&mut pool, query)?)
+        })
+        .await
+        .context("DB task panicked")??;
+
+        Ok(row)
+    }
+
     pub fn get_photos_list_from_hashes_list<'s, 'h>(
         &'s mut self,
         _hashes: &'h [String],
@@ -252,4 +315,22 @@ fn query_photo_table<'a>(
         .context("Failed on executing the query")?;
 
     Ok(rows_into_reference(rows))
+}
+
+fn query_single_photo_table<'a>(
+    pool: &mut ConnectionPool,
+    query: PhotoQuery<'a>,
+) -> anyhow::Result<Option<PhotoMeta>> {
+    let mut conn = pool.get().context("Failed to acquire DB connection")?;
+
+    let rows: Result<PhotoTableRow, _> = query.select(PhotoTableRow::as_select()).first(&mut conn);
+
+    let rows: PhotoTableRow = match rows {
+        Ok(ok) => ok,
+        Err(diesel::result::Error::NotFound) => return Ok(None),
+        Err(err) => return Err(err).context("Failed to query the photo table"),
+    };
+
+    let meta = ParsedPhotoTableRow::try_from(rows)?;
+    Ok(Some(meta.meta))
 }

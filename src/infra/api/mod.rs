@@ -59,7 +59,7 @@ pub async fn run(ctx: Arc<crate::Context>) -> Result<(), anyhow::Error> {
             CorsLayer::default()
                 .allow_origin(cors_origin)
                 .allow_headers([AUTHORIZATION, CONTENT_TYPE, ACCEPT])
-                .allow_methods([Method::GET, Method::POST])
+                .allow_methods([Method::GET, Method::POST, Method::PUT])
                 .allow_credentials(true),
         )
         .layer(tower_http::trace::TraceLayer::new_for_http())

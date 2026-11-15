@@ -1,6 +1,6 @@
 #[allow(clippy::disallowed_types)]
 use std::path::{Path, PathBuf};
-use std::{fs::Metadata, pin::Pin};
+use std::{fs::Metadata, io::ErrorKind, pin::Pin};
 
 use anyhow::{Context as _, bail};
 use futures_util::{Stream, TryStreamExt};
@@ -108,6 +108,48 @@ impl ScopedPath {
 
     pub async fn open_file(&self) -> std::io::Result<File> {
         tokio::fs::File::open(&self.path).await
+    }
+
+    pub async fn move_file(self, new_path: &ScopedPath) -> std::io::Result<()> {
+        if new_path.exists() {
+            return Err(std::io::Error::new(
+                ErrorKind::AlreadyExists,
+                "Tried to move the file, but the destination is already occupied",
+            ));
+        }
+
+        let result = tokio::fs::rename(&self.use_path(), &new_path.use_path()).await;
+        let Err(err) = result else {
+            return Ok(());
+        };
+
+        if err.kind() != std::io::ErrorKind::CrossesDevices {
+            return Err(err);
+        }
+
+        tracing::warn!(
+            "The moving operation crosses devices: we are forced to copy then remove the original.\n  From: {}\n    To: {}",
+            self.display(),
+            new_path.display(),
+        );
+
+        if let Err(err) = tokio::fs::copy(&self.use_path(), &new_path.use_path()).await {
+            if new_path.exists()
+                && let Err(err) = tokio::fs::remove_file(&new_path.use_path()).await
+            {
+                tracing::warn!(
+                    "The copy to the destination failed, and couldn't even remove it: {err}"
+                );
+            }
+            return Err(err);
+        }
+        if let Err(err) = tokio::fs::remove_file(&self.use_path()).await {
+            tracing::warn!(
+                "The copy to the destination was successful, but the old file refused to be removed: {err}"
+            );
+        }
+
+        Ok(())
     }
 
     pub async fn remove_file(&self) -> std::io::Result<()> {

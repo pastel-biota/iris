@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use axum::{Json, body::Body, extract::State, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Multipart, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
 use http::request::Parts;
 
 use crate::{
@@ -8,12 +13,15 @@ use crate::{
     api::error::ApiError,
     auth::extractor::ValidUserSession,
     event::Event,
-    infra::api::types::{BinaryBody, ClientError, SuccessfulResponse, success},
+    infra::api::types::{ClientError, FileForm, SuccessfulResponse, success},
     ingest::{
         api::scheme::PhotoScheme,
-        technicals::image::{
-            process::{ProcessImageError, get_hash, process_image},
-            property::process_properties,
+        technicals::{
+            form::{FormFile, receive_form_file},
+            image::{
+                process::{ProcessImageError, get_hash, process_image},
+                property::process_properties,
+            },
         },
     },
     model::Identifier,
@@ -43,7 +51,7 @@ pub const MAX_BODY: usize = 100 * 1024 * 1024;
         ("session_header" = []),
         ("session_cookie" = [])
     ),
-    request_body(content = BinaryBody, content_type = "application/octet-stream"),
+    request_body(content = FileForm, content_type = "multipart/form-data"),
     responses(
         (status = CREATED, description = "The photo was registered and the image processing was queued.", body = SuccessfulResponse<NewPhotoResponse>),
         (status = CONFLICT, description = "There already was a photo registered with the matching hash", body = ClientError),
@@ -54,7 +62,7 @@ pub async fn new_photo(
     State(ctx): State<Arc<Context>>,
     ValidUserSession(_): ValidUserSession,
     parts: Parts,
-    body: Body,
+    mut multipart: Multipart,
 ) -> Result<impl IntoResponse, ApiError> {
     let Some(length) = parts
         .headers
@@ -67,13 +75,21 @@ pub async fn new_photo(
         ));
     };
 
-    let received = ctx
-        .ingest
-        .sized_sream
-        .receive_stream(length, body.into_data_stream())
-        .await
-        .map_err(ApiError::internal_during("reading the body content"))?;
-    let content = received
+    let file = match receive_form_file(&mut multipart, &ctx.ingest.sized_sream, length).await {
+        Ok(file) => file,
+        Err(err_response) => {
+            return Ok(err_response);
+        }
+    };
+    let FormFile { payload, file_name } = file;
+
+    let Some(file_name) = file_name else {
+        return Err(ApiError::BadRequest(
+            "file name needs to be provided".into(),
+        ));
+    };
+
+    let content = payload
         .read()
         .await
         .map_err(ApiError::internal_during("reading the body content"))?;
@@ -111,14 +127,13 @@ pub async fn new_photo(
 
     let photo_id = Identifier::new(&processed.shot_time, &ulid::Ulid::new().to_string());
 
-    let original_ext = processed.original_meta.extension.clone();
-
     let new_photo = NewPhotoParam {
         id: photo_id.clone(),
         original: processed.original_meta,
         original_sha256: sha256,
         shot_time: processed.shot_time,
         representative_rgb: processed.averaged_color.0,
+        file_name_hint: file_name.clone(),
         properties,
     };
 
@@ -129,7 +144,7 @@ pub async fn new_photo(
             .await
             .map_err(ApiError::internal_during("registering the photo"))?;
         registry
-            .upload_original_image(&photo_id, &original_ext, bytes)
+            .upload_original_image(&photo_id, &file_name, bytes.as_ref())
             .await
             .map_err(ApiError::internal_during("uploading the original image"))?;
 
@@ -147,5 +162,5 @@ pub async fn new_photo(
         photo: new_photo.into(),
     };
 
-    Ok((StatusCode::CREATED, Json(success(response))))
+    Ok((StatusCode::CREATED, Json(success(response))).into_response())
 }

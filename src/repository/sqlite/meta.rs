@@ -11,7 +11,7 @@ pub struct PhotoTableRow {
 }
 
 pub struct ParsedPhotoTableRow {
-    meta: PhotoMeta,
+    pub meta: PhotoMeta,
 }
 
 impl TryFrom<PhotoTableRow> for ParsedPhotoTableRow {
